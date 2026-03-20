@@ -11,11 +11,98 @@ import { API_ERRORS } from '@constants/errors';
 
 export const entriesService = {
   /**
-   * Create a new entry
+   * Upload image to Supabase Storage
    */
-  async createEntry(userId: string, request: CreateEntryRequest) {
+  async uploadImage(userId: string, imageUri: string, filename: string): Promise<string> {
     try {
-      // Step 1: Create entry
+      // Read the image file
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('entry-images')
+        .upload(`${userId}/${filename}`, blob, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: publicData } = supabase.storage
+        .from('entry-images')
+        .getPublicUrl(data.path);
+
+      return publicData.publicUrl;
+    } catch (error) {
+      console.error('Upload image error:', error);
+      throw this.handleError(error);
+    }
+  },
+
+  /**
+   * Upload audio to Supabase Storage
+   */
+  async uploadAudio(userId: string, audioUri: string, filename: string): Promise<string> {
+    try {
+      // Read the audio file
+      const response = await fetch(audioUri);
+      const blob = await response.blob();
+
+      // Upload to Supabase storage
+      const { data, error } = await supabase.storage
+        .from('entry-audio')
+        .upload(`${userId}/${filename}`, blob, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: publicData } = supabase.storage
+        .from('entry-audio')
+        .getPublicUrl(data.path);
+
+      return publicData.publicUrl;
+    } catch (error) {
+      console.error('Upload audio error:', error);
+      throw this.handleError(error);
+    }
+  },
+
+  /**
+   * Create a new entry with all media
+   */
+  async createEntry(
+    userId: string,
+    request: CreateEntryRequest & {
+      imageUris?: string[];
+      audioUri?: string;
+      location?: { latitude: number; longitude: number; address?: string };
+    }
+  ) {
+    try {
+      // Step 1: Upload images
+      const imageUrls: string[] = [];
+      if (request.imageUris && request.imageUris.length > 0) {
+        for (let i = 0; i < request.imageUris.length; i++) {
+          const imageUri = request.imageUris[i];
+          const filename = `${Date.now()}-${i}.jpg`;
+          const url = await this.uploadImage(userId, imageUri, filename);
+          imageUrls.push(url);
+        }
+      }
+
+      // Step 2: Upload audio
+      let audioUrl: string | null = null;
+      if (request.audioUri) {
+        const filename = `${Date.now()}-voice-memo.m4a`;
+        audioUrl = await this.uploadAudio(userId, request.audioUri, filename);
+      }
+
+      // Step 3: Create entry
       const { data: entry, error: entryError } = await supabase
         .from('entries')
         .insert({
@@ -23,6 +110,9 @@ export const entriesService = {
           title: request.title,
           content: request.content,
           mood: request.mood || null,
+          images: imageUrls,
+          audio_url: audioUrl,
+          location: request.location || null,
         })
         .select()
         .single();
@@ -31,7 +121,7 @@ export const entriesService = {
         throw entryError || new Error('Failed to create entry');
       }
 
-      // Step 2: Link drawers
+      // Step 4: Link drawers
       if (request.drawerIds && request.drawerIds.length > 0) {
         const { error: drawerError } = await supabase.from('entry_drawers').insert(
           request.drawerIds.map((drawerId) => ({
@@ -47,7 +137,7 @@ export const entriesService = {
         }
       }
 
-      // Step 3: Link tags
+      // Step 5: Link tags
       if (request.tagIds && request.tagIds.length > 0) {
         const { error: tagError } = await supabase.from('entry_tags').insert(
           request.tagIds.map((tagId) => ({
@@ -63,7 +153,7 @@ export const entriesService = {
         }
       }
 
-      // Step 4: Fetch entry with relations
+      // Step 6: Fetch entry with relations
       return this.getEntryById(entry.id, userId);
     } catch (error) {
       console.error('Create entry error:', error);
@@ -405,6 +495,9 @@ export const entriesService = {
       title: row.title,
       content: row.content,
       mood: row.mood,
+      images: row.images || [],
+      audioUrl: row.audio_url,
+      location: row.location,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
       deletedAt: row.deleted_at,

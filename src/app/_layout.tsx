@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { RootNavigator } from '@navigation/stacks/RootStack';
+import { RootNavigator } from '@navigation/stacks';
 import { testSupabaseConnection } from '@services/supabase/test';
 
 export default function RootLayout() {

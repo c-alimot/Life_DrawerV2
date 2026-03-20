@@ -7,7 +7,14 @@ import {
 } from '@types';
 
 export const entriesApi = {
-  async createEntry(userId: string, data: CreateEntryRequest) {
+  async createEntry(
+    userId: string,
+    data: CreateEntryRequest & {
+      imageUris?: string[];
+      audioUri?: string;
+      location?: { latitude: number; longitude: number; address?: string };
+    }
+  ) {
     try {
       const result = await entriesService.createEntry(userId, data);
       return {
