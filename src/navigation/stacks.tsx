@@ -8,6 +8,7 @@ import { LifePhasesScreen } from '@features/home/screens/LifePhasesScreen';
 import { SearchScreen } from '@features/search/screens/SearchScreen';
 import { DrawerDetailScreen } from '@features/drawers/screens/DrawerDetailScreen';
 import { InsightsScreen } from '@features/insights/screens/InsightsScreen';
+import { SplashScreen } from '@features/splash/screens/SplashScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -17,16 +18,47 @@ export function RootNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
+          animationEnabled: true,
         }}
       >
-        <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen name="CreateEntry" component={CreateEntryScreen} />
-        <Stack.Screen name="EntryDetail" component={EntryDetailScreen} />
-        <Stack.Screen name="EditEntry" component={EditEntryScreen} />
-        <Stack.Screen name="LifePhases" component={LifePhasesScreen} />
-        <Stack.Screen name="Search" component={SearchScreen} />
-        <Stack.Screen name="DrawerDetail" component={DrawerDetailScreen} />
-        <Stack.Screen name="Insights" component={InsightsScreen} />
+        <Stack.Screen 
+          name="Splash" 
+          component={SplashScreen}
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen 
+          name="Home" 
+          component={HomeScreen}
+          options={{ animationEnabled: false }}
+        />
+        <Stack.Screen 
+          name="CreateEntry" 
+          component={CreateEntryScreen}
+        />
+        <Stack.Screen 
+          name="EntryDetail" 
+          component={EntryDetailScreen}
+        />
+        <Stack.Screen 
+          name="EditEntry" 
+          component={EditEntryScreen}
+        />
+        <Stack.Screen 
+          name="LifePhases" 
+          component={LifePhasesScreen}
+        />
+        <Stack.Screen 
+          name="Search" 
+          component={SearchScreen}
+        />
+        <Stack.Screen 
+          name="DrawerDetail" 
+          component={DrawerDetailScreen}
+        />
+        <Stack.Screen 
+          name="Insights" 
+          component={InsightsScreen}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

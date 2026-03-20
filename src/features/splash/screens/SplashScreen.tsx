@@ -3,14 +3,12 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Image,
   Animated,
   Dimensions,
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@styles/theme';
-import { useAuthStore } from '@store';
 import { Screen, SafeArea } from '@components/layout';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -29,15 +27,12 @@ const QUOTES = [
 export function SplashScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
-  const { session, fetchSession } = useAuthStore();
-  const route = useRoute();
 
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
   const [quote, setQuote] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Select random quote
@@ -72,41 +67,16 @@ export function SplashScreen() {
   }, [scaleAnim, opacityAnim, slideAnim]);
 
   useEffect(() => {
-    // Check authentication status
-    const initializeApp = async () => {
-      try {
-        // Verify session is still valid
-        const currentSession = await fetchSession();
+    // Navigate to Home after splash screen duration
+    const timer = setTimeout(() => {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' as any }],
+      });
+    }, 3000); // 3 second splash screen
 
-        // Simulate loading time for smooth transition
-        setTimeout(() => {
-          setIsLoading(false);
-
-          // Navigate based on auth status
-          if (currentSession) {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Home' as any }],
-            });
-          } else {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' as any }],
-            });
-          }
-        }, 2000); // 2 second splash screen
-      } catch (error) {
-        console.error('Error initializing app:', error);
-        setIsLoading(false);
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Login' as any }],
-        });
-      }
-    };
-
-    initializeApp();
-  }, [navigation, fetchSession]);
+    return () => clearTimeout(timer);
+  }, [navigation]);
 
   return (
     <SafeArea>
