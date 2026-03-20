@@ -6,6 +6,7 @@ import { EntryDetailScreen } from '@features/entries/screens/EntryDetailScreen';
 import { EditEntryScreen } from '@features/entries/screens/EditEntryScreen';
 import { LifePhasesScreen } from '@features/home/screens/LifePhasesScreen';
 import { SearchScreen } from '@features/search/screens/SearchScreen';
+import { DrawerDetailScreen } from '@features/drawers/screens/DrawerDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,6 +24,7 @@ export function RootNavigator() {
         <Stack.Screen name="EditEntry" component={EditEntryScreen} />
         <Stack.Screen name="LifePhases" component={LifePhasesScreen} />
         <Stack.Screen name="Search" component={SearchScreen} />
+        <Stack.Screen name="DrawerDetail" component={DrawerDetailScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
