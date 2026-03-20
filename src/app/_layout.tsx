@@ -1,16 +1,59 @@
-import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { RootNavigator } from '@navigation/stacks/RootStack';
-import { testSupabaseConnection } from '@services/supabase/test';
+import { useAuthStore } from '@store';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { useTheme } from '@styles/theme';
+import { SplashScreen } from '@features/splash/screens/SplashScreen';
 
 export default function RootLayout() {
+  const { session, fetchSession } = useAuthStore();
+  const theme = useTheme();
+  const [isChecking, setIsChecking] = useState(true);
+
   useEffect(() => {
-    testSupabaseConnection();
-  }, []);
+    const checkAuth = async () => {
+      try {
+        await fetchSession();
+      } catch (error) {
+        console.error('Error checking auth:', error);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkAuth();
+  }, [fetchSession]);
+
+  if (isChecking) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <SplashScreen />
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <RootNavigator />
+      <SafeAreaProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          {!session ? (
+            <>
+              <Stack.Screen name="login" />
+              <Stack.Screen name="signup" />
+            </>
+          ) : (
+            <Stack.Screen name="(tabs)" />
+          )}
+        </Stack>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
