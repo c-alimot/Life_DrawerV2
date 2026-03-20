@@ -1,21 +1,21 @@
+import { SafeArea, Screen } from "@components/layout";
+import { Button } from "@components/ui";
+import { useDrawers } from "@features/drawers/hooks/useDrawers";
+import { useEntries } from "@features/entries/hooks/useEntries";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useAuthStore } from "@store";
+import { useTheme } from "@styles/theme";
+import { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
   ActivityIndicator,
-} from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState, useEffect } from 'react';
-import { useTheme } from '@styles/theme';
-import { useAuthStore } from '@store';
-import { useEntries } from '@features/entries/hooks/useEntries';
-import { useDrawers } from '@features/drawers/hooks/useDrawers';
-import { useLifePhase } from '../hooks/useLifePhase';
-import { Screen, SafeArea } from '@components/layout';
-import { Button } from '@components/ui';
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useLifePhase } from "../hooks/useLifePhase";
 
 interface GroupedEntries {
   [date: string]: any[];
@@ -25,9 +25,17 @@ export function HomeScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
   const { user } = useAuthStore();
-  const { entries, isLoading: entriesLoading, fetchRecentEntries } = useEntries();
+  const {
+    entries,
+    isLoading: entriesLoading,
+    fetchRecentEntries,
+  } = useEntries();
   const { drawers, isLoading: drawersLoading, fetchDrawers } = useDrawers();
-  const { activePhase, isLoading: phaseLoading, fetchActivePhase } = useLifePhase();
+  const {
+    activePhase,
+    isLoading: phaseLoading,
+    fetchActivePhase,
+  } = useLifePhase();
 
   const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({});
 
@@ -39,18 +47,18 @@ export function HomeScreen() {
         fetchRecentEntries();
         fetchDrawers();
       }
-    }, [user, fetchActivePhase, fetchRecentEntries, fetchDrawers])
+    }, [user, fetchActivePhase, fetchRecentEntries, fetchDrawers]),
   );
 
   // Group entries by date
   useEffect(() => {
     const grouped: GroupedEntries = {};
     entries.forEach((entry) => {
-      const date = new Date(entry.createdAt).toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
+      const date = new Date(entry.createdAt).toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
       if (!grouped[date]) {
         grouped[date] = [];
@@ -61,33 +69,33 @@ export function HomeScreen() {
   }, [entries]);
 
   const handleNewEntry = useCallback(() => {
-    navigation.navigate('CreateEntry' as never);
+    navigation.navigate("CreateEntry" as never);
   }, [navigation]);
 
   const handleSearch = useCallback(() => {
-    navigation.navigate('Search' as never);
+    navigation.navigate("Search" as never);
   }, [navigation]);
 
   const handleSetLifePhase = useCallback(() => {
-    navigation.navigate('LifePhases' as never);
+    navigation.navigate("LifePhases" as never);
   }, [navigation]);
 
   const handleCreateFirstEntry = useCallback(() => {
-    navigation.navigate('CreateEntry' as never);
+    navigation.navigate("CreateEntry" as never);
   }, [navigation]);
 
   const handleEntryPress = useCallback(
     (entryId: string) => {
-      navigation.navigate('EntryDetail' as never, { entryId } as never);
+      navigation.navigate("EntryDetail" as never, { entryId } as never);
     },
-    [navigation]
+    [navigation],
   );
 
   const handleDrawerPress = useCallback(
     (drawerId: string) => {
-      navigation.navigate('DrawerDetail' as never, { drawerId } as never);
+      navigation.navigate("DrawerDetail" as never, { drawerId } as never);
     },
-    [navigation]
+    [navigation],
   );
 
   const isLoading = entriesLoading || drawersLoading || phaseLoading;
@@ -113,7 +121,9 @@ export function HomeScreen() {
             onPress={handleSetLifePhase}
             accessible
             accessibilityLabel={
-              activePhase ? `Current life phase: ${activePhase.name}` : 'Set life phase'
+              activePhase
+                ? `Current life phase: ${activePhase.name}`
+                : "Set life phase"
             }
             accessibilityHint="Tap to set or change your current life phase"
             accessibilityRole="button"
@@ -123,12 +133,12 @@ export function HomeScreen() {
                 theme.typography.body,
                 {
                   color: theme.colors.textSecondary,
-                  fontWeight: '500',
+                  fontWeight: "500",
                   fontSize: 14,
                 },
               ]}
             >
-              {activePhase ? activePhase.name : 'Set Life Phase'}
+              {activePhase ? activePhase.name : "Set Life Phase"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -172,7 +182,7 @@ export function HomeScreen() {
                     theme.typography.body,
                     {
                       color: theme.colors.background,
-                      fontWeight: '600',
+                      fontWeight: "600",
                     },
                   ]}
                 >
@@ -208,7 +218,7 @@ export function HomeScreen() {
                     theme.typography.body,
                     {
                       color: theme.colors.background,
-                      fontWeight: '600',
+                      fontWeight: "600",
                     },
                   ]}
                 >
@@ -225,7 +235,7 @@ export function HomeScreen() {
                   {
                     color: theme.colors.textSecondary,
                     marginBottom: theme.spacing.md,
-                    textTransform: 'uppercase',
+                    textTransform: "uppercase",
                     letterSpacing: 0.5,
                   },
                 ]}
@@ -245,7 +255,7 @@ export function HomeScreen() {
                     style={[
                       styles.emptyIcon,
                       {
-                        backgroundColor: theme.colors.primary + '15',
+                        backgroundColor: theme.colors.primary + "15",
                       },
                     ]}
                   >
@@ -267,20 +277,19 @@ export function HomeScreen() {
                       theme.typography.body,
                       {
                         color: theme.colors.textSecondary,
-                        textAlign: 'center',
+                        textAlign: "center",
                         marginBottom: theme.spacing.lg,
                         lineHeight: 22,
                       },
                     ]}
                   >
-                    Your journey starts here. Capture your first moment whenever you're
-                    ready.
+                    Your journey starts here. Capture your first moment whenever
+                    you're ready.
                   </Text>
                   <Button
                     label="+ Create First Entry"
                     onPress={handleCreateFirstEntry}
                     accessibilityLabel="Create first entry button"
-                    accessibilityRole="button"
                   />
                 </View>
               ) : (
@@ -294,7 +303,7 @@ export function HomeScreen() {
                           {
                             color: theme.colors.textSecondary,
                             marginBottom: theme.spacing.md,
-                            fontWeight: '500',
+                            fontWeight: "500",
                           },
                         ]}
                       >
@@ -309,7 +318,7 @@ export function HomeScreen() {
                           ]}
                           onPress={() => handleEntryPress(entry.id)}
                           accessible
-                          accessibilityLabel={`Entry: ${entry.title || 'Untitled'}`}
+                          accessibilityLabel={`Entry: ${entry.title || "Untitled"}`}
                           accessibilityHint={`Created on ${new Date(entry.createdAt).toLocaleDateString()}`}
                           accessibilityRole="button"
                         >
@@ -324,7 +333,7 @@ export function HomeScreen() {
                               ]}
                               numberOfLines={1}
                             >
-                              {entry.title || 'Untitled Entry'}
+                              {entry.title || "Untitled Entry"}
                             </Text>
                             {entry.mood && (
                               <Text
@@ -355,7 +364,7 @@ export function HomeScreen() {
                                   style={[
                                     styles.tag,
                                     {
-                                      backgroundColor: drawer.color + '20',
+                                      backgroundColor: drawer.color + "20",
                                     },
                                   ]}
                                 >
@@ -387,7 +396,7 @@ export function HomeScreen() {
                   {
                     color: theme.colors.textSecondary,
                     marginBottom: theme.spacing.md,
-                    textTransform: 'uppercase',
+                    textTransform: "uppercase",
                     letterSpacing: 0.5,
                   },
                 ]}
@@ -408,8 +417,8 @@ export function HomeScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    You can create custom drawers anytime to organize your entries by
-                    theme or topic
+                    You can create custom drawers anytime to organize your
+                    entries by theme or topic
                   </Text>
                 </View>
               ) : (
@@ -433,12 +442,13 @@ export function HomeScreen() {
                         style={[
                           styles.drawerIcon,
                           {
-                            backgroundColor: drawer.color || theme.colors.primary,
+                            backgroundColor:
+                              drawer.color || theme.colors.primary,
                           },
                         ]}
                       >
                         <Text style={styles.drawerIconText}>
-                          {drawer.icon || '📦'}
+                          {drawer.icon || "📦"}
                         </Text>
                       </View>
                       <View style={styles.drawerInfo}>
@@ -477,8 +487,8 @@ export function HomeScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    You can create custom drawers anytime to organize your entries by
-                    theme or topic
+                    You can create custom drawers anytime to organize your
+                    entries by theme or topic
                   </Text>
                 </View>
               )}
@@ -495,9 +505,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
@@ -507,20 +517,20 @@ const styles = StyleSheet.create({
   },
   loaderContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   actionsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 32,
     marginTop: 8,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 12,
     borderRadius: 16,
@@ -531,7 +541,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 40,
     paddingHorizontal: 20,
     borderWidth: 1,
@@ -541,8 +551,8 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
   },
   emptyIconText: {
@@ -559,14 +569,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   entryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   entryTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginTop: 12,
   },
@@ -576,8 +586,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   drawerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
@@ -588,8 +598,8 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   drawerIconText: {
