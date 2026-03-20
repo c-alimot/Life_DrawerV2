@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useEffect } from 'react';
+import { useNavigation } from "@react-navigation/native";
+import { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -21,16 +21,16 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   text: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   subtitle: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginTop: 8,
   },
 });
