@@ -1,52 +1,79 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useTheme } from '@styles/theme';
-import { useSignup } from '../hooks/useSignup';
-import { Screen, SafeArea } from '@components/layout';
-import { Button, Input } from '@components/ui';
+import { SafeArea, Screen } from "@components/layout";
+import { Button } from "@components/ui";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useTheme } from "@styles/theme";
+import { router } from "expo-router";
+import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { z } from "zod";
+import { useSignup } from "../hooks/useSignup";
+
+const AUTH_BACKGROUND = "#EDEAE4";
+const AUTH_FIELD_BACKGROUND = "#FFFFFF";
+const AUTH_TEXT = "#2F2924";
+const AUTH_MUTED = "#6F6860";
+const AUTH_PRIMARY = "#8C9A7F";
+const AUTH_ACCENT = "#B39C87";
 
 const signupSchema = z
   .object({
-    fullName: z.string().min(2, 'Name must be at least 2 characters'),
-    email: z.string().email('Invalid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    fullName: z.string().min(2, "Name must be at least 2 characters"),
+    email: z.string().email("Invalid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
     agreeToTerms: z.boolean().refine((val) => val === true, {
-      message: 'You must agree to the terms',
+      message: "You must agree to the terms",
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
-    path: ['confirmPassword'],
+    path: ["confirmPassword"],
   });
 
 type SignupFormData = z.infer<typeof signupSchema>;
 
 export function SignupScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const { signup, isLoading, error } = useSignup();
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
 
   const {
     control,
     handleSubmit,
     formState: { errors },
     watch,
+    setValue,
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
-      fullName: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
+      fullName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
       agreeToTerms: false,
     },
   });
 
-  const agreeToTerms = watch('agreeToTerms');
+  const agreeToTerms = watch("agreeToTerms");
+  const passwordValue = watch("password");
+
+  const passwordChecks = useMemo(
+    () => ({
+      minLength: passwordValue.length >= 8,
+      upperLower: /[a-z]/.test(passwordValue) && /[A-Z]/.test(passwordValue),
+      number: /\d/.test(passwordValue),
+      symbol: /[^A-Za-z0-9]/.test(passwordValue),
+    }),
+    [passwordValue],
+  );
 
   const onSubmit = async (data: SignupFormData) => {
     const success = await signup({
@@ -60,35 +87,56 @@ export function SignupScreen() {
     }
   };
 
+  const fieldBaseStyle = {
+    backgroundColor: AUTH_FIELD_BACKGROUND,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    minHeight: 72,
+    borderWidth: 0,
+    color: AUTH_TEXT,
+    shadowColor: AUTH_TEXT,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 4,
+    ...theme.typography.body,
+  } as const;
+
   return (
     <SafeArea>
-      <Screen style={styles.container}>
+      <Screen
+        style={[styles.container, { backgroundColor: AUTH_BACKGROUND }]}
+      >
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => router.replace("/intro")}
               accessible
               accessibilityLabel="Go back"
             >
-              <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
-                ← Back
+              <Text
+                style={[
+                  theme.typography.body,
+                  styles.backLink,
+                  { color: AUTH_TEXT },
+                ]}
+              >
+                Back
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Title */}
           <View style={styles.titleSection}>
             <Text
               style={[
-                theme.typography.h2,
+                styles.title,
                 {
-                  color: theme.colors.text,
-                  textAlign: 'center',
-                  marginBottom: theme.spacing.md,
+                  color: AUTH_TEXT,
+                  textAlign: "center",
+                  fontFamily: theme.fonts.serif,
                 },
               ]}
             >
@@ -96,19 +144,15 @@ export function SignupScreen() {
             </Text>
           </View>
 
-          {/* Error Message */}
           {error && (
             <View
               style={[
                 styles.errorBanner,
-                { backgroundColor: theme.colors.error + '20' },
+                { backgroundColor: theme.colors.errorBackground },
               ]}
             >
               <Text
-                style={[
-                  theme.typography.bodySm,
-                  { color: theme.colors.error },
-                ]}
+                style={[theme.typography.bodySm, { color: theme.colors.error }]}
                 accessible
                 accessibilityRole="alert"
               >
@@ -117,75 +161,261 @@ export function SignupScreen() {
             </View>
           )}
 
-          {/* Form */}
           <View style={styles.form}>
+            <Text
+              style={[
+                theme.typography.labelSm,
+                styles.fieldLabel,
+                { color: AUTH_TEXT },
+              ]}
+            >
+              FULL NAME
+            </Text>
             <Controller
               control={control}
               name="fullName"
               render={({ field: { onChange, value } }) => (
-                <Input
-                  label="Name"
-                  placeholder="Your name"
-                  value={value}
-                  onChangeText={onChange}
-                  error={errors.fullName?.message}
-                  accessibilityLabel="Full name input"
-                />
+                <View style={styles.fieldBlock}>
+                  <TextInput
+                    style={fieldBaseStyle}
+                    placeholder="Your name"
+                    placeholderTextColor={AUTH_MUTED}
+                    value={value}
+                    onChangeText={onChange}
+                    autoComplete="name"
+                    accessibilityLabel="Full name input"
+                  />
+                  {errors.fullName?.message ? (
+                    <Text
+                      style={[
+                        theme.typography.bodySm,
+                        styles.fieldError,
+                        { color: theme.colors.error },
+                      ]}
+                    >
+                      {errors.fullName.message}
+                    </Text>
+                  ) : null}
+                </View>
               )}
             />
 
+            <Text
+              style={[
+                theme.typography.labelSm,
+                styles.fieldLabel,
+                { color: AUTH_TEXT },
+              ]}
+            >
+              EMAIL ADDRESS
+            </Text>
             <Controller
               control={control}
               name="email"
               render={({ field: { onChange, value } }) => (
-                <Input
-                  label="Email"
-                  placeholder="your@email.com"
-                  value={value}
-                  onChangeText={onChange}
-                  error={errors.email?.message}
-                  accessibilityLabel="Email input"
-                />
+                <View style={styles.fieldBlock}>
+                  <TextInput
+                    style={fieldBaseStyle}
+                    placeholder="your@email.com"
+                    placeholderTextColor={AUTH_MUTED}
+                    value={value}
+                    onChangeText={onChange}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                    accessibilityLabel="Email input"
+                  />
+                  {errors.email?.message ? (
+                    <Text
+                      style={[
+                        theme.typography.bodySm,
+                        styles.fieldError,
+                        { color: theme.colors.error },
+                      ]}
+                    >
+                      {errors.email.message}
+                    </Text>
+                  ) : null}
+                </View>
               )}
             />
 
+            <Text
+              style={[
+                theme.typography.labelSm,
+                styles.fieldLabel,
+                { color: AUTH_TEXT },
+              ]}
+            >
+              PASSWORD
+            </Text>
             <Controller
               control={control}
               name="password"
               render={({ field: { onChange, value } }) => (
-                <Input
-                  label="Password"
-                  placeholder="Create a password"
-                  value={value}
-                  onChangeText={onChange}
-                  secureTextEntry
-                  error={errors.password?.message}
-                  accessibilityLabel="Password input"
-                />
+                <View style={styles.fieldBlock}>
+                  <TextInput
+                    style={fieldBaseStyle}
+                    placeholder="Create a password"
+                    placeholderTextColor={AUTH_MUTED}
+                    value={value}
+                    onChangeText={onChange}
+                    onFocus={() => setIsPasswordFocused(true)}
+                    onBlur={() => setIsPasswordFocused(false)}
+                    secureTextEntry
+                    autoComplete="new-password"
+                    accessibilityLabel="Password input"
+                  />
+                  {isPasswordFocused ? (
+                    <View
+                      style={[
+                        styles.passwordHelperCard,
+                        {
+                          backgroundColor: AUTH_FIELD_BACKGROUND,
+                          shadowColor: AUTH_TEXT,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          theme.typography.bodySm,
+                          styles.passwordHelperTitle,
+                          { color: AUTH_TEXT },
+                        ]}
+                      >
+                        Password requirements
+                      </Text>
+
+                      <View style={styles.passwordHelperList}>
+                        <View style={styles.passwordHelperRow}>
+                          <Text
+                            style={[
+                              styles.passwordHelperIcon,
+                              {
+                                color: passwordChecks.minLength
+                                  ? AUTH_PRIMARY
+                                  : AUTH_ACCENT,
+                              },
+                            ]}
+                          >
+                            {passwordChecks.minLength ? "✓" : "○"}
+                          </Text>
+                          <Text
+                            style={[
+                              theme.typography.bodySm,
+                              styles.passwordHelperText,
+                              { color: AUTH_MUTED },
+                            ]}
+                          >
+                            Use at least 8 characters
+                          </Text>
+                        </View>
+
+                        <View style={styles.passwordHelperRow}>
+                          <Text
+                            style={[
+                              styles.passwordHelperIcon,
+                              {
+                                color:
+                                  passwordChecks.upperLower &&
+                                  passwordChecks.number &&
+                                  passwordChecks.symbol
+                                    ? AUTH_PRIMARY
+                                    : AUTH_ACCENT,
+                              },
+                            ]}
+                          >
+                            {passwordChecks.upperLower &&
+                            passwordChecks.number &&
+                            passwordChecks.symbol
+                              ? "✓"
+                              : "○"}
+                          </Text>
+                          <Text
+                            style={[
+                              theme.typography.bodySm,
+                              styles.passwordHelperText,
+                              { color: AUTH_MUTED },
+                            ]}
+                          >
+                            Include uppercase, lowercase, a number, and a symbol
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
+                  {errors.password?.message ? (
+                    <Text
+                      style={[
+                        theme.typography.bodySm,
+                        styles.fieldError,
+                        { color: theme.colors.error },
+                      ]}
+                    >
+                      {errors.password.message}
+                    </Text>
+                  ) : null}
+                </View>
               )}
             />
 
+            <Text
+              style={[
+                theme.typography.labelSm,
+                styles.fieldLabel,
+                { color: AUTH_TEXT },
+              ]}
+            >
+              CONFIRM PASSWORD
+            </Text>
             <Controller
               control={control}
               name="confirmPassword"
               render={({ field: { onChange, value } }) => (
-                <Input
-                  label="Confirm Password"
-                  placeholder="Confirm your password"
-                  value={value}
-                  onChangeText={onChange}
-                  secureTextEntry
-                  error={errors.confirmPassword?.message}
-                  accessibilityLabel="Confirm password input"
-                />
+                <View style={styles.fieldBlock}>
+                  <TextInput
+                    style={fieldBaseStyle}
+                    placeholder="Confirm your password"
+                    placeholderTextColor={AUTH_MUTED}
+                    value={value}
+                    onChangeText={onChange}
+                    secureTextEntry
+                    autoComplete="new-password"
+                    accessibilityLabel="Confirm password input"
+                  />
+                  {errors.confirmPassword?.message ? (
+                    <Text
+                      style={[
+                        theme.typography.bodySm,
+                        styles.fieldError,
+                        { color: theme.colors.error },
+                      ]}
+                    >
+                      {errors.confirmPassword.message}
+                    </Text>
+                  ) : null}
+                </View>
               )}
             />
 
-            {/* Terms Checkbox */}
             <TouchableOpacity
-              style={styles.termsContainer}
+              style={[
+                styles.termsContainer,
+                {
+                  borderColor: "transparent",
+                  backgroundColor: AUTH_FIELD_BACKGROUND,
+                  shadowColor: AUTH_TEXT,
+                  shadowOffset: { width: 0, height: 12 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 22,
+                  elevation: 4,
+                },
+              ]}
               onPress={() => {
-                // TODO: Toggle checkbox
+                setValue("agreeToTerms", !agreeToTerms, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
               }}
               accessible
               accessibilityLabel="Agree to terms and privacy policy"
@@ -196,41 +426,54 @@ export function SignupScreen() {
                 style={[
                   styles.checkbox,
                   {
-                    borderColor: theme.colors.border,
+                    borderColor: AUTH_ACCENT,
                     backgroundColor: agreeToTerms
-                      ? theme.colors.primary
-                      : 'transparent',
+                      ? AUTH_PRIMARY
+                      : AUTH_FIELD_BACKGROUND,
                   },
                 ]}
-              />
+              >
+                {agreeToTerms ? (
+                  <Text style={styles.checkboxMark}>✓</Text>
+                ) : null}
+              </View>
               <Text
                 style={[
                   theme.typography.bodySm,
-                  { color: theme.colors.text, flex: 1, marginLeft: theme.spacing.md },
+                  styles.termsText,
+                  { color: AUTH_TEXT },
                 ]}
               >
-                I agree to the Terms of Service and Privacy Policy. I understand my
-                journal entries are private and will never be shared.
+                I agree to the Terms of Service and Privacy Policy. I understand
+                my journal entries are private and will never be shared.
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Submit Button */}
           <Button
-            label={isLoading ? 'Creating account...' : 'Create account'}
+            label={isLoading ? "CREATING ACCOUNT..." : "CREATE ACCOUNT"}
             onPress={handleSubmit(onSubmit)}
             disabled={isLoading || !agreeToTerms}
+            variant="primary"
+            textStyle={{ color: "#FFFFFF" }}
+            style={[
+              styles.submitButton,
+              {
+                borderRadius: 999,
+                minHeight: 72,
+                backgroundColor: AUTH_PRIMARY,
+              },
+            ]}
             accessibilityLabel="Create account button"
             accessibilityHint="Submit signup form"
           />
 
-          {/* Login Link */}
           <View style={styles.loginLink}>
-            <Text style={[theme.typography.body, { color: theme.colors.text }]}>
-              Already have an account?{' '}
+            <Text style={[theme.typography.body, { color: AUTH_TEXT }]}>
+              Already have an account?{" "}
             </Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate('Login' as never)}
+              onPress={() => router.replace("/login")}
               accessible
               accessibilityLabel="Sign in"
               accessibilityHint="Navigate to login page"
@@ -238,7 +481,8 @@ export function SignupScreen() {
               <Text
                 style={[
                   theme.typography.body,
-                  { color: theme.colors.primary, fontWeight: '600' },
+                  styles.bottomLink,
+                  { color: AUTH_PRIMARY },
                 ]}
               >
                 Sign in
@@ -257,25 +501,77 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
-    paddingVertical: 20,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 28,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 18,
+  },
+  backLink: {
+    fontWeight: "500",
   },
   titleSection: {
-    marginBottom: 30,
+    marginBottom: 28,
+  },
+  title: {
+    fontSize: 32,
+    lineHeight: 40,
+    marginBottom: 2,
   },
   form: {
     marginBottom: 30,
   },
+  fieldLabel: {
+    letterSpacing: 2.2,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  fieldBlock: {
+    marginBottom: 8,
+  },
+  fieldError: {
+    marginTop: 8,
+  },
+  passwordHelperCard: {
+    marginTop: 12,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    elevation: 3,
+  },
+  passwordHelperTitle: {
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  passwordHelperList: {
+    gap: 8,
+  },
+  passwordHelperRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  passwordHelperIcon: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginRight: 10,
+    fontWeight: "700",
+  },
+  passwordHelperText: {
+    flex: 1,
+    lineHeight: 20,
+  },
   termsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     marginBottom: 20,
-    padding: 12,
+    marginTop: 10,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
+    borderRadius: 18,
   },
   checkbox: {
     width: 20,
@@ -283,16 +579,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 4,
     marginTop: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxMark: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 14,
+  },
+  termsText: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  submitButton: {
+    marginTop: 4,
   },
   loginLink: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 20,
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 28,
+    flexWrap: "wrap",
+  },
+  bottomLink: {
+    fontWeight: "700",
   },
   errorBanner: {
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 16,
     marginBottom: 20,
   },
 });

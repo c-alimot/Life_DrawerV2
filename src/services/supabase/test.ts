@@ -4,7 +4,7 @@ export async function testSupabaseConnection() {
   try {
     console.log('🔍 Testing Supabase connection...');
 
-    const { data, error } = await supabase.auth.getSession();
+    const { error } = await supabase.auth.getSession();
 
     if (error) {
       console.error('❌ Connection error:', error.message);

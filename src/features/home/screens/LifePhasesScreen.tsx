@@ -1,24 +1,32 @@
+import { AppBottomNav, AppSideMenu, SafeArea, Screen } from "@components/layout";
+import { Button, Input } from "@components/ui";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useFocusEffect } from "@react-navigation/native";
+import { useTheme } from "@styles/theme";
+import { useCallback, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   FlatList,
   Modal,
-} from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useTheme } from '@styles/theme';
-import { useLifePhase } from '../hooks/useLifePhase';
-import { Screen, SafeArea } from '@components/layout';
-import { Button, Input } from '@components/ui';
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { z } from "zod";
+import { useLifePhase } from "../hooks/useLifePhase";
+
+const PAGE_BACKGROUND = "#EDEAE4";
+const PAGE_SURFACE = "#FFFFFF";
+const PAGE_TEXT = "#2F2924";
+const PAGE_MUTED = "#6F6860";
+const PAGE_PRIMARY = "#8C9A7F";
+const PAGE_SECONDARY = "#556950";
+const PAGE_BORDER = "#B39C87";
 
 const lifePhaseSchema = z.object({
-  name: z.string().min(2, 'Life phase name must be at least 2 characters'),
+  name: z.string().min(2, "Life phase name must be at least 2 characters"),
   description: z.string().optional(),
 });
 
@@ -26,25 +34,31 @@ type LifePhaseFormData = z.infer<typeof lifePhaseSchema>;
 
 const EXAMPLE_PHASES = [
   {
-    name: 'College Years',
-    description: 'Learning and growing',
+    name: "College Years",
+    description: "Learning and growing",
   },
   {
-    name: 'First Job',
-    description: 'Starting my career journey',
+    name: "First Job",
+    description: "Starting my career journey",
   },
   {
-    name: 'Living Abroad',
-    description: 'New adventures in a new place',
+    name: "Living Abroad",
+    description: "New adventures in a new place",
   },
 ];
 
 export function LifePhasesScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const { activePhase, phases, isLoading, createPhase, setActivePhaseById, fetchAllPhases } =
-    useLifePhase();
+  const {
+    activePhase,
+    phases,
+    isLoading,
+    createPhase,
+    setActivePhaseById,
+    fetchAllPhases,
+  } = useLifePhase();
   const [showModal, setShowModal] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const {
     control,
@@ -54,8 +68,8 @@ export function LifePhasesScreen() {
   } = useForm<LifePhaseFormData>({
     resolver: zodResolver(lifePhaseSchema),
     defaultValues: {
-      name: '',
-      description: '',
+      name: "",
+      description: "",
     },
   });
 
@@ -63,7 +77,7 @@ export function LifePhasesScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchAllPhases();
-    }, [fetchAllPhases])
+    }, [fetchAllPhases]),
   );
 
   const onSubmit = async (data: LifePhaseFormData) => {
@@ -84,29 +98,42 @@ export function LifePhasesScreen() {
       await setActivePhaseById(phaseId);
       fetchAllPhases();
     },
-    [setActivePhaseById, fetchAllPhases]
+    [setActivePhaseById, fetchAllPhases],
   );
-
-  const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
 
   const handleExamplePhase = useCallback(
     (name: string, description: string) => {
       reset({ name, description });
     },
-    [reset]
+    [reset],
   );
 
   return (
     <SafeArea>
-      <Screen style={styles.container}>
+      <Screen style={[styles.container, { backgroundColor: PAGE_BACKGROUND }]}>
+        <AppSideMenu
+          visible={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          currentRoute="/life-phases"
+        />
+
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} accessible accessibilityLabel="Go back">
-            <Text style={[theme.typography.h2, { color: theme.colors.text }]}>←</Text>
+          <TouchableOpacity
+            onPress={() => setIsMenuOpen(true)}
+            accessible
+            accessibilityLabel="Open menu"
+          >
+            <Text style={[styles.menuButton, { color: PAGE_TEXT }]}>
+              ☰
+            </Text>
           </TouchableOpacity>
-          <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              styles.pageTitle,
+              { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
+            ]}
+          >
             Life Phases
           </Text>
           <View style={{ width: 40 }} />
@@ -121,7 +148,11 @@ export function LifePhasesScreen() {
             <View
               style={[
                 styles.iconContainer,
-                { backgroundColor: theme.colors.gray[200] },
+                {
+                  backgroundColor: PAGE_SURFACE,
+                  borderColor: PAGE_BORDER,
+                  shadowColor: PAGE_TEXT,
+                },
               ]}
             >
               <Text style={styles.iconText}>📅</Text>
@@ -131,9 +162,10 @@ export function LifePhasesScreen() {
               style={[
                 theme.typography.h2,
                 {
-                  color: theme.colors.text,
-                  textAlign: 'center',
+                  color: PAGE_TEXT,
+                  textAlign: "center",
                   marginVertical: theme.spacing.lg,
+                  fontFamily: theme.fonts.serif,
                 },
               ]}
             >
@@ -144,15 +176,15 @@ export function LifePhasesScreen() {
               style={[
                 theme.typography.body,
                 {
-                  color: theme.colors.textSecondary,
-                  textAlign: 'center',
+                  color: PAGE_MUTED,
+                  textAlign: "center",
                   marginBottom: theme.spacing.xl,
                   lineHeight: 24,
                 },
               ]}
             >
-              Group your entries under one current life phase at a time, helping you capture
-              and reflect on the chapter you're in right now.
+              Group your entries under one current life phase at a time, helping
+              you capture and reflect on the chapter you&apos;re in right now.
             </Text>
           </View>
 
@@ -160,6 +192,7 @@ export function LifePhasesScreen() {
           <Button
             label="+ Create Your First Phase"
             onPress={() => setShowModal(true)}
+            variant="secondary"
             accessibilityLabel="Create new life phase button"
             accessibilityHint="Opens form to create a new life phase"
           />
@@ -171,23 +204,32 @@ export function LifePhasesScreen() {
                 styles.card,
                 styles.activeCard,
                 {
-                  borderColor: theme.colors.primary,
-                  backgroundColor: theme.colors.primary + '10',
+                  borderColor: PAGE_BORDER,
+                  backgroundColor: PAGE_SURFACE,
+                  shadowColor: PAGE_TEXT,
                 },
               ]}
             >
               <Text
                 style={[
                   theme.typography.labelSm,
-                  { color: theme.colors.primary, marginBottom: theme.spacing.sm },
+                  {
+                    color: PAGE_SECONDARY,
+                    marginBottom: theme.spacing.sm,
+                    letterSpacing: 2,
+                  },
                 ]}
               >
                 CURRENT LIFE PHASE
               </Text>
               <Text
                 style={[
-                  theme.typography.h3,
-                  { color: theme.colors.text, marginBottom: theme.spacing.xs },
+                  styles.phaseName,
+                  {
+                    color: PAGE_TEXT,
+                    marginBottom: theme.spacing.xs,
+                    fontFamily: theme.fonts.serif,
+                  },
                 ]}
               >
                 {activePhase.name}
@@ -196,7 +238,7 @@ export function LifePhasesScreen() {
                 <Text
                   style={[
                     theme.typography.bodySm,
-                    { color: theme.colors.textSecondary },
+                    { color: PAGE_MUTED },
                   ]}
                 >
                   {activePhase.description}
@@ -212,9 +254,11 @@ export function LifePhasesScreen() {
                 style={[
                   theme.typography.labelSm,
                   {
-                    color: theme.colors.textSecondary,
+                    color: PAGE_MUTED,
                     marginTop: theme.spacing.xl,
                     marginBottom: theme.spacing.md,
+                    letterSpacing: 2.2,
+                    textTransform: "uppercase",
                   },
                 ]}
               >
@@ -230,16 +274,18 @@ export function LifePhasesScreen() {
                     style={[
                       styles.phaseCard,
                       {
-                        borderColor: theme.colors.border,
-                        backgroundColor:
-                          phase.isActive ? theme.colors.primary + '10' : 'transparent',
+                        borderColor: PAGE_BORDER,
+                        backgroundColor: PAGE_SURFACE,
+                        shadowColor: PAGE_TEXT,
                       },
                     ]}
                     onPress={() => handleSelectPhase(phase.id)}
                     accessible
                     accessibilityLabel={`Life phase: ${phase.name}`}
                     accessibilityHint={
-                      phase.isActive ? 'Currently active' : 'Tap to set as active'
+                      phase.isActive
+                        ? "Currently active"
+                        : "Tap to set as active"
                     }
                     accessibilityRole="button"
                   >
@@ -248,8 +294,8 @@ export function LifePhasesScreen() {
                         styles.phaseIcon,
                         {
                           backgroundColor: phase.isActive
-                            ? theme.colors.primary
-                            : theme.colors.gray[300],
+                            ? PAGE_PRIMARY
+                            : PAGE_PRIMARY + "22",
                         },
                       ]}
                     >
@@ -258,8 +304,8 @@ export function LifePhasesScreen() {
                     <View style={styles.phaseInfo}>
                       <Text
                         style={[
-                          theme.typography.h3,
-                          { color: theme.colors.text },
+                          styles.phaseName,
+                          { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
                         ]}
                       >
                         {phase.name}
@@ -269,7 +315,7 @@ export function LifePhasesScreen() {
                           style={[
                             theme.typography.bodySm,
                             {
-                              color: theme.colors.textSecondary,
+                              color: PAGE_MUTED,
                               marginTop: theme.spacing.xs,
                             },
                           ]}
@@ -291,9 +337,11 @@ export function LifePhasesScreen() {
                 style={[
                   theme.typography.labelSm,
                   {
-                    color: theme.colors.textSecondary,
+                    color: PAGE_MUTED,
                     marginTop: theme.spacing.xl,
                     marginBottom: theme.spacing.md,
+                    letterSpacing: 2.2,
+                    textTransform: "uppercase",
                   },
                 ]}
               >
@@ -308,7 +356,11 @@ export function LifePhasesScreen() {
                   <TouchableOpacity
                     style={[
                       styles.exampleCard,
-                      { borderColor: theme.colors.border },
+                      {
+                        borderColor: PAGE_BORDER,
+                        backgroundColor: PAGE_SURFACE,
+                        shadowColor: PAGE_TEXT,
+                      },
                     ]}
                     onPress={() =>
                       handleExamplePhase(example.name, example.description)
@@ -322,7 +374,7 @@ export function LifePhasesScreen() {
                       style={[
                         styles.exampleIcon,
                         {
-                          backgroundColor: theme.colors.gray[300],
+                          backgroundColor: PAGE_PRIMARY + "22",
                         },
                       ]}
                     >
@@ -331,8 +383,8 @@ export function LifePhasesScreen() {
                     <View style={styles.exampleInfo}>
                       <Text
                         style={[
-                          theme.typography.h3,
-                          { color: theme.colors.text },
+                          styles.phaseName,
+                          { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
                         ]}
                       >
                         {example.name}
@@ -341,7 +393,7 @@ export function LifePhasesScreen() {
                         style={[
                           theme.typography.bodySm,
                           {
-                            color: theme.colors.textSecondary,
+                            color: PAGE_MUTED,
                             marginTop: theme.spacing.xs,
                           },
                         ]}
@@ -367,7 +419,7 @@ export function LifePhasesScreen() {
             <Screen
               style={[
                 styles.modalContainer,
-                { backgroundColor: theme.colors.background },
+                { backgroundColor: PAGE_BACKGROUND },
               ]}
             >
               {/* Modal Header */}
@@ -377,11 +429,18 @@ export function LifePhasesScreen() {
                   accessible
                   accessibilityLabel="Close"
                 >
-                  <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
+                  <Text
+                    style={[theme.typography.h3, { color: PAGE_TEXT }]}
+                  >
                     ✕
                   </Text>
                 </TouchableOpacity>
-                <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+                <Text
+                  style={[
+                    styles.modalTitle,
+                    { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
+                  ]}
+                >
                   New Life Phase
                 </Text>
                 <View style={{ width: 40 }} />
@@ -426,7 +485,7 @@ export function LifePhasesScreen() {
                 </View>
 
                 <Button
-                  label={isLoading ? 'Creating...' : 'Create Life Phase'}
+                  label={isLoading ? "Creating..." : "Create Life Phase"}
                   onPress={handleSubmit(onSubmit)}
                   disabled={isLoading}
                   accessibilityLabel="Create life phase button"
@@ -435,6 +494,8 @@ export function LifePhasesScreen() {
             </Screen>
           </SafeArea>
         </Modal>
+
+        <AppBottomNav currentRoute="/life-phases" />
       </Screen>
     </SafeArea>
   );
@@ -445,28 +506,42 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  menuButton: {
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: "500",
+  },
+  pageTitle: {
+    fontSize: 40,
+    lineHeight: 46,
   },
   content: {
     paddingHorizontal: 20,
     paddingVertical: 20,
-    paddingBottom: 40,
+    paddingBottom: 230,
   },
   intro: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   iconContainer: {
     width: 120,
     height: 120,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 24,
+    borderWidth: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 5,
   },
   iconText: {
     fontSize: 50,
@@ -475,28 +550,36 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 22,
     marginTop: 24,
     marginBottom: 32,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   activeCard: {
-    borderWidth: 2,
+    borderWidth: 1,
   },
   phaseCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 22,
     marginBottom: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   phaseIcon: {
     width: 50,
     height: 50,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   phaseIconText: {
@@ -506,20 +589,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exampleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 22,
     marginBottom: 12,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   exampleIcon: {
     width: 50,
     height: 50,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 16,
   },
   exampleIconText: {
@@ -535,15 +622,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
+  },
+  modalTitle: {
+    fontSize: 34,
+    lineHeight: 40,
   },
   modalContent: {
     paddingHorizontal: 20,
     paddingVertical: 20,
     paddingBottom: 40,
+  },
+  phaseName: {
+    fontSize: 28,
+    lineHeight: 32,
   },
 });

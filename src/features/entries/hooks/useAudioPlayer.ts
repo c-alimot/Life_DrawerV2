@@ -15,6 +15,17 @@ export function useAudioPlayer(audioUri: string | null) {
     };
   }, []);
 
+  const onPlaybackStatusUpdate = useCallback(async (status: any) => {
+    if (status.isLoaded) {
+      setDuration(status.durationMillis);
+      setPosition(status.positionMillis);
+
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+      }
+    }
+  }, []);
+
   const play = useCallback(async () => {
     if (!audioUri) return;
 
@@ -43,18 +54,7 @@ export function useAudioPlayer(audioUri: string | null) {
     } catch (error) {
       console.error('Error playing audio:', error);
     }
-  }, [audioUri]);
-
-  const onPlaybackStatusUpdate = useCallback(async (status: any) => {
-    if (status.isLoaded) {
-      setDuration(status.durationMillis);
-      setPosition(status.positionMillis);
-
-      if (status.didJustFinish) {
-        setIsPlaying(false);
-      }
-    }
-  }, []);
+  }, [audioUri, onPlaybackStatusUpdate]);
 
   const stop = useCallback(async () => {
     if (soundRef.current) {

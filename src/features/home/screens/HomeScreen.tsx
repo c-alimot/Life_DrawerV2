@@ -1,10 +1,11 @@
-import { SafeArea, Screen } from "@components/layout";
+import { AppBottomNav, AppSideMenu, SafeArea, Screen } from "@components/layout";
 import { Button } from "@components/ui";
 import { useDrawers } from "@features/drawers/hooks/useDrawers";
 import { useEntries } from "@features/entries/hooks/useEntries";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useAuthStore } from "@store";
 import { useTheme } from "@styles/theme";
+import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,9 +22,16 @@ interface GroupedEntries {
   [date: string]: any[];
 }
 
+const HOME_BACKGROUND = "#EDEAE4";
+const HOME_TEXT = "#2F2924";
+const HOME_MUTED = "#6F6860";
+const HOME_PRIMARY = "#8C9A7F";
+const HOME_SECONDARY = "#556950";
+const HOME_SURFACE = "#FFFFFF";
+const HOME_ACCENT = "#B39C87";
+
 export function HomeScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const { user } = useAuthStore();
   const {
     entries,
@@ -38,6 +46,7 @@ export function HomeScreen() {
   } = useLifePhase();
 
   const [groupedEntries, setGroupedEntries] = useState<GroupedEntries>({});
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Fetch data on screen focus
   useFocusEffect(
@@ -69,51 +78,62 @@ export function HomeScreen() {
   }, [entries]);
 
   const handleNewEntry = useCallback(() => {
-    navigation.navigate("CreateEntry" as never);
-  }, [navigation]);
+    router.push("/create-entry");
+  }, []);
 
   const handleSearch = useCallback(() => {
-    navigation.navigate("Search" as never);
-  }, [navigation]);
+    router.push("/search");
+  }, []);
 
   const handleSetLifePhase = useCallback(() => {
-    navigation.navigate("LifePhases" as never);
-  }, [navigation]);
+    router.push("/life-phases");
+  }, []);
 
   const handleCreateFirstEntry = useCallback(() => {
-    navigation.navigate("CreateEntry" as never);
-  }, [navigation]);
+    router.push("/create-entry");
+  }, []);
 
-  const handleEntryPress = useCallback(
-    (entryId: string) => {
-      navigation.navigate("EntryDetail" as never, { entryId } as never);
-    },
-    [navigation],
-  );
+  const handleEntryPress = useCallback((entryId: string) => {
+    router.push(`/entry/${entryId}`);
+  }, []);
 
-  const handleDrawerPress = useCallback(
-    (drawerId: string) => {
-      navigation.navigate("DrawerDetail" as never, { drawerId } as never);
-    },
-    [navigation],
-  );
+  const handleDrawerPress = useCallback((drawerId: string) => {
+    router.push(`/drawers/${drawerId}`);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+  }, []);
+
+  const handleOpenMenu = useCallback(() => {
+    setIsMenuOpen(true);
+  }, []);
 
   const isLoading = entriesLoading || drawersLoading || phaseLoading;
 
   return (
     <SafeArea>
-      <Screen style={styles.container}>
+      <Screen style={[styles.container, { backgroundColor: HOME_BACKGROUND }]}>
+        <AppSideMenu visible={isMenuOpen} onClose={closeMenu} currentRoute="/" />
+
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
+            onPress={handleOpenMenu}
             accessible
-            accessibilityLabel="Menu"
+            accessibilityLabel="Open menu"
+            accessibilityRole="button"
           >
-            <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+            <Text style={[styles.menuButton, { color: HOME_TEXT }]}>
               ☰
             </Text>
           </TouchableOpacity>
-          <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              styles.headerTitle,
+              { color: HOME_TEXT, fontFamily: theme.fonts.serif },
+            ]}
+          >
             Home
           </Text>
           <TouchableOpacity
@@ -128,11 +148,11 @@ export function HomeScreen() {
           >
             <Text
               style={[
-                theme.typography.body,
+                theme.typography.bodySm,
                 {
-                  color: theme.colors.textSecondary,
-                  fontWeight: "500",
-                  fontSize: 14,
+                  color: HOME_MUTED,
+                  fontWeight: "600",
+                  textAlign: "right",
                 },
               ]}
             >
@@ -143,7 +163,7 @@ export function HomeScreen() {
 
         {isLoading ? (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ActivityIndicator size="large" color={HOME_PRIMARY} />
           </View>
         ) : (
           <ScrollView
@@ -156,7 +176,10 @@ export function HomeScreen() {
                 style={[
                   styles.actionButton,
                   styles.newEntryButton,
-                  { backgroundColor: theme.colors.primary },
+                  {
+                    backgroundColor: HOME_SECONDARY,
+                    shadowColor: HOME_TEXT,
+                  },
                 ]}
                 onPress={handleNewEntry}
                 accessible
@@ -167,7 +190,7 @@ export function HomeScreen() {
                   style={[
                     theme.typography.h3,
                     {
-                      color: theme.colors.background,
+                      color: HOME_SURFACE,
                       marginRight: theme.spacing.sm,
                     },
                   ]}
@@ -178,8 +201,8 @@ export function HomeScreen() {
                   style={[
                     theme.typography.body,
                     {
-                      color: theme.colors.background,
-                      fontWeight: "600",
+                      color: HOME_SURFACE,
+                      fontWeight: "700",
                     },
                   ]}
                 >
@@ -191,7 +214,11 @@ export function HomeScreen() {
                 style={[
                   styles.actionButton,
                   styles.searchButton,
-                  { backgroundColor: theme.colors.primary },
+                  {
+                    backgroundColor: HOME_SURFACE,
+                    borderColor: HOME_ACCENT,
+                    shadowColor: HOME_TEXT,
+                  },
                 ]}
                 onPress={handleSearch}
                 accessible
@@ -202,7 +229,7 @@ export function HomeScreen() {
                   style={[
                     theme.typography.h3,
                     {
-                      color: theme.colors.background,
+                      color: HOME_PRIMARY,
                       marginRight: theme.spacing.sm,
                     },
                   ]}
@@ -213,8 +240,8 @@ export function HomeScreen() {
                   style={[
                     theme.typography.body,
                     {
-                      color: theme.colors.background,
-                      fontWeight: "600",
+                      color: HOME_TEXT,
+                      fontWeight: "700",
                     },
                   ]}
                 >
@@ -229,10 +256,10 @@ export function HomeScreen() {
                 style={[
                   theme.typography.labelSm,
                   {
-                    color: theme.colors.textSecondary,
+                    color: HOME_MUTED,
                     marginBottom: theme.spacing.md,
                     textTransform: "uppercase",
-                    letterSpacing: 0.5,
+                    letterSpacing: 2.2,
                   },
                 ]}
               >
@@ -244,14 +271,17 @@ export function HomeScreen() {
                 <View
                   style={[
                     styles.emptyState,
-                    { borderColor: theme.colors.border },
+                    {
+                      backgroundColor: HOME_SURFACE,
+                      shadowColor: HOME_TEXT,
+                    },
                   ]}
                 >
                   <View
                     style={[
                       styles.emptyIcon,
                       {
-                        backgroundColor: theme.colors.primary + "15",
+                        backgroundColor: theme.colors.accent1 + "55",
                       },
                     ]}
                   >
@@ -259,9 +289,10 @@ export function HomeScreen() {
                   </View>
                   <Text
                     style={[
-                      theme.typography.h3,
+                      styles.emptyTitle,
                       {
-                        color: theme.colors.text,
+                        color: HOME_TEXT,
+                        fontFamily: theme.fonts.serif,
                         marginBottom: theme.spacing.md,
                       },
                     ]}
@@ -272,19 +303,24 @@ export function HomeScreen() {
                     style={[
                       theme.typography.body,
                       {
-                        color: theme.colors.textSecondary,
+                        color: HOME_MUTED,
                         textAlign: "center",
                         marginBottom: theme.spacing.lg,
-                        lineHeight: 22,
+                        lineHeight: 28,
                       },
                     ]}
                   >
                     Your journey starts here. Capture your first moment whenever
-                    you're ready.
+                    you&apos;re ready.
                   </Text>
                   <Button
                     label="+ Create First Entry"
                     onPress={handleCreateFirstEntry}
+                    textStyle={{ color: "#FFFFFF" }}
+                    style={[
+                      styles.inlineCta,
+                      { backgroundColor: HOME_PRIMARY },
+                    ]}
                     accessibilityLabel="Create first entry button"
                   />
                 </View>
@@ -310,7 +346,10 @@ export function HomeScreen() {
                           key={entry.id}
                           style={[
                             styles.entryCard,
-                            { borderColor: theme.colors.border },
+                            {
+                              backgroundColor: HOME_SURFACE,
+                              shadowColor: HOME_TEXT,
+                            },
                           ]}
                           onPress={() => handleEntryPress(entry.id)}
                           accessible
@@ -322,8 +361,9 @@ export function HomeScreen() {
                               style={[
                                 theme.typography.h3,
                                 {
-                                  color: theme.colors.text,
+                                  color: HOME_TEXT,
                                   flex: 1,
+                                  fontFamily: theme.fonts.serif,
                                 },
                               ]}
                               numberOfLines={1}
@@ -344,7 +384,7 @@ export function HomeScreen() {
                             style={[
                               theme.typography.bodySm,
                               {
-                                color: theme.colors.textSecondary,
+                                color: HOME_MUTED,
                               },
                             ]}
                             numberOfLines={2}
@@ -386,13 +426,13 @@ export function HomeScreen() {
             {/* Recently Opened Drawers Section */}
             <View style={styles.section}>
               <Text
-                style={[
-                  theme.typography.labelSm,
+                  style={[
+                    theme.typography.labelSm,
                   {
-                    color: theme.colors.textSecondary,
+                    color: HOME_MUTED,
                     marginBottom: theme.spacing.md,
                     textTransform: "uppercase",
-                    letterSpacing: 0.5,
+                    letterSpacing: 2.2,
                   },
                 ]}
               >
@@ -403,13 +443,16 @@ export function HomeScreen() {
                 <View
                   style={[
                     styles.infoBox,
-                    { backgroundColor: theme.colors.gray[100] },
+                    {
+                      backgroundColor: HOME_SURFACE,
+                      shadowColor: HOME_TEXT,
+                    },
                   ]}
                 >
                   <Text
                     style={[
                       theme.typography.bodySm,
-                      { color: theme.colors.textSecondary },
+                      { color: HOME_MUTED },
                     ]}
                   >
                     You can create custom drawers anytime to organize your
@@ -425,7 +468,10 @@ export function HomeScreen() {
                     <TouchableOpacity
                       style={[
                         styles.drawerCard,
-                        { borderColor: theme.colors.border },
+                        {
+                          backgroundColor: HOME_SURFACE,
+                          shadowColor: HOME_TEXT,
+                        },
                       ]}
                       onPress={() => handleDrawerPress(drawer.id)}
                       accessible
@@ -436,8 +482,7 @@ export function HomeScreen() {
                         style={[
                           styles.drawerIcon,
                           {
-                            backgroundColor:
-                              drawer.color || theme.colors.primary,
+                            backgroundColor: drawer.color || HOME_PRIMARY,
                           },
                         ]}
                       >
@@ -448,8 +493,11 @@ export function HomeScreen() {
                       <View style={styles.drawerInfo}>
                         <Text
                           style={[
-                            theme.typography.h3,
-                            { color: theme.colors.text },
+                            styles.drawerTitle,
+                            {
+                              color: HOME_TEXT,
+                              fontFamily: theme.fonts.serif,
+                            },
                           ]}
                         >
                           {drawer.name}
@@ -457,7 +505,7 @@ export function HomeScreen() {
                         <Text
                           style={[
                             theme.typography.bodySm,
-                            { color: theme.colors.textSecondary },
+                            { color: HOME_MUTED },
                           ]}
                         >
                           {drawer.entryCount} entries
@@ -472,13 +520,16 @@ export function HomeScreen() {
                 <View
                   style={[
                     styles.infoBox,
-                    { backgroundColor: theme.colors.gray[100] },
+                    {
+                      backgroundColor: HOME_SURFACE,
+                      shadowColor: HOME_TEXT,
+                    },
                   ]}
                 >
                   <Text
                     style={[
                       theme.typography.bodySm,
-                      { color: theme.colors.textSecondary },
+                      { color: HOME_MUTED },
                     ]}
                   >
                     You can create custom drawers anytime to organize your
@@ -489,6 +540,8 @@ export function HomeScreen() {
             </View>
           </ScrollView>
         )}
+
+        <AppBottomNav currentRoute="/" />
       </Screen>
     </SafeArea>
   );
@@ -502,12 +555,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  menuButton: {
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: "500",
+    minWidth: 36,
+  },
+  headerTitle: {
+    fontSize: 42,
+    lineHeight: 48,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 24,
+    paddingBottom: 230,
   },
   loaderContainer: {
     flex: 1,
@@ -518,28 +582,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginBottom: 32,
-    marginTop: 8,
+    marginTop: 4,
   },
   actionButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
   },
   newEntryButton: {},
-  searchButton: {},
+  searchButton: {
+    borderWidth: 1.5,
+  },
   section: {
     marginBottom: 32,
   },
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderRadius: 16,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 5,
   },
   emptyIcon: {
     width: 80,
@@ -552,15 +625,27 @@ const styles = StyleSheet.create({
   emptyIconText: {
     fontSize: 40,
   },
+  emptyTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+  },
+  inlineCta: {
+    minHeight: 64,
+    borderRadius: 999,
+    paddingHorizontal: 24,
+  },
   dateGroup: {
     marginBottom: 20,
   },
   entryCard: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    marginBottom: 14,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   entryHeader: {
     flexDirection: "row",
@@ -582,16 +667,19 @@ const styles = StyleSheet.create({
   drawerCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderRadius: 12,
-    marginBottom: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    marginBottom: 14,
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   drawerIcon: {
     width: 50,
     height: 50,
-    borderRadius: 8,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
@@ -602,9 +690,17 @@ const styles = StyleSheet.create({
   drawerInfo: {
     flex: 1,
   },
+  drawerTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
   infoBox: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
 });

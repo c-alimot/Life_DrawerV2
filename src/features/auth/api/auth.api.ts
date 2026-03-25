@@ -107,6 +107,24 @@ export const authApi = {
     }
   },
 
+  async resetPassword(email: string) {
+    try {
+      await authService.resetPassword(email);
+      return {
+        success: true,
+        data: null,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Auth API reset password error:", error);
+      return {
+        success: false,
+        data: null,
+        error: error as ApiError,
+      };
+    }
+  },
+
   /**
    * Update user profile
    */

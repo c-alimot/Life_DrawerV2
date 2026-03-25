@@ -1,47 +1,59 @@
-import { View, Text, StyleSheet, ScrollView, Image, Dimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useState } from 'react';
-import { useTheme } from '@styles/theme';
-import { useUIStore } from '@store';
-import { Screen, SafeArea } from '@components/layout';
-import { Button } from '@components/ui';
+import { Screen } from "@components/layout";
+import { useTheme } from "@styles/theme";
+import { router } from "expo-router";
+import { useState } from "react";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Colors } from "../../../../constants/theme";
+import { setOnboardingCompleted } from "../utils/onboarding";
+
+const ONBOARDING_TEXT = "#2F2924";
+const ONBOARDING_BACKGROUND = "#EDEAE4";
 
 const ONBOARDING_SLIDES = [
   {
     id: 1,
-    image: require('@assets/images/featherpen.png'),
-    title: 'A calmer way to journal',
+    image: require("../../../../assets/images/featherpen.png"),
+    title: "A calmer way to journal",
     description:
-      'Life Drawer is a quiet space to capture thoughts, memories, and everyday moments without pressure.',
+      "Life Drawer is a quiet space to capture thoughts, memories, and everyday moments without pressure.",
   },
   {
     id: 2,
-    image: require('@assets/images/stackedcards.png'),
-    title: 'Organize reflections your way',
+    image: require("../../../../assets/images/stackedcards.png"),
+    title: "Organize reflections your way",
     description:
-      'Use drawers for parts of your life, life phases for different seasons, and tags to group moments across everything.',
+      "Use drawers for parts of your life, life phases for different seasons, and tags to group moments across everything.",
   },
   {
     id: 3,
-    image: require('@assets/images/ripple.png'),
-    title: 'Look back with more meaning',
+    image: require("../../../../assets/images/ripple.png"),
+    title: "Look back with more meaning",
     description:
-      'Revisit what you have written, notice patterns over time, and keep what matters in a way that feels personal.',
+      "Revisit what you have written, notice patterns over time, and keep what matters in a way that feels personal.",
   },
 ];
 
 export function OnboardingScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const screenWidth = Dimensions.get('window').width;
 
-  const handleNext = () => {
+  const completeOnboarding = async () => {
+    await setOnboardingCompleted();
+    router.replace("/intro");
+  };
+
+  const handleNext = async () => {
     if (currentSlide < ONBOARDING_SLIDES.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
-      // Complete onboarding and go to login
-      navigation.navigate('Login' as never);
+      await completeOnboarding();
     }
   };
 
@@ -51,74 +63,129 @@ export function OnboardingScreen() {
     }
   };
 
-  const handleSkip = () => {
-    navigation.navigate('Login' as never);
+  const handleSkip = async () => {
+    await completeOnboarding();
   };
 
   const slide = ONBOARDING_SLIDES[currentSlide];
   const isLastSlide = currentSlide === ONBOARDING_SLIDES.length - 1;
 
   return (
-    <SafeArea>
-      <Screen style={styles.container}>
-        {/* Header with Skip */}
-        <View style={styles.header}>
-          <View />
-          <Button
-            label="Skip"
-            onPress={handleSkip}
-            variant="outline"
-            size="sm"
-            accessibilityLabel="Skip onboarding"
-            accessibilityHint="Go directly to login"
-          />
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        { backgroundColor: Colors.light.background },
+      ]}
+    >
+      <Screen
+        style={[
+          styles.container,
+          { backgroundColor: Colors.light.background },
+        ]}
+      >
+        <View
+          style={[
+            styles.glowTop,
+            { backgroundColor: theme.colors.primary + "14" },
+          ]}
+        />
+        <View
+          style={[
+            styles.glowBottom,
+            { backgroundColor: theme.colors.accent1 + "30" },
+          ]}
+        />
+
+        <View style={styles.topActions}>
+          {currentSlide > 0 ? (
+            <TouchableOpacity
+              onPress={handlePrevious}
+              style={styles.topActionButton}
+              accessible
+              accessibilityLabel="Previous slide"
+              accessibilityRole="button"
+            >
+              <Text
+                style={[
+                  theme.typography.bodySm,
+                  styles.topActionText,
+                  { color: ONBOARDING_TEXT },
+                ]}
+              >
+                Previous
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.topActionPlaceholder} />
+          )}
+          <View style={styles.topActionPlaceholder} />
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.content}
-        >
-          {/* Image */}
-          <View style={styles.imageContainer}>
+        <View style={styles.content}>
+          <View
+            style={[
+              styles.heroCircleLarge,
+              { backgroundColor: theme.colors.accent1 + "26" },
+            ]}
+          />
+          <View
+            style={[
+              styles.heroCircleMedium,
+              { backgroundColor: theme.colors.accent1 + "18" },
+            ]}
+          />
+          <View
+            style={[
+              styles.heroCircleSmall,
+              { backgroundColor: theme.colors.accent2 + "14" },
+            ]}
+          />
+          <View
+            style={[
+              styles.heroHalo,
+              { backgroundColor: theme.colors.accent1 + "20" },
+            ]}
+          />
+          <View
+            style={[
+              styles.imageOrb,
+              {
+                backgroundColor: ONBOARDING_BACKGROUND,
+                shadowColor: theme.colors.text,
+              },
+            ]}
+          >
             <Image
               source={slide.image}
-              style={[styles.image, { width: screenWidth * 0.5 }]}
+              style={styles.image}
               resizeMode="contain"
               accessible
               accessibilityLabel={`Onboarding slide ${currentSlide + 1} illustration`}
             />
           </View>
 
-          {/* Title */}
           <Text
             style={[
-              theme.typography.h2,
+              styles.title,
               {
-                color: theme.colors.text,
-                textAlign: 'center',
-                marginVertical: theme.spacing.lg,
+                color: ONBOARDING_TEXT,
+                fontFamily: theme.fonts.serif,
               },
             ]}
           >
             {slide.title}
           </Text>
 
-          {/* Description */}
           <Text
             style={[
               theme.typography.body,
-              {
-                color: theme.colors.textSecondary,
-                textAlign: 'center',
-                marginBottom: theme.spacing.xl,
-                lineHeight: 24,
-              },
+              styles.description,
+              { color: ONBOARDING_TEXT },
             ]}
           >
             {slide.description}
           </Text>
 
-          {/* Pagination Dots */}
           <View style={styles.pagination}>
             {ONBOARDING_SLIDES.map((_, index) => (
               <View
@@ -130,7 +197,8 @@ export function OnboardingScreen() {
                       index === currentSlide
                         ? theme.colors.primary
                         : theme.colors.gray[300],
-                    width: index === currentSlide ? 24 : 8,
+                    width: index === currentSlide ? 34 : 8,
+                    opacity: index === currentSlide ? 1 : 0.9,
                   },
                 ]}
                 accessible
@@ -138,78 +206,203 @@ export function OnboardingScreen() {
                 accessibilityValue={{
                   min: 0,
                   max: ONBOARDING_SLIDES.length,
-                  current: currentSlide + 1,
+                  now: currentSlide + 1,
                 }}
               />
             ))}
           </View>
-        </ScrollView>
+        </View>
 
-        {/* Navigation Footer */}
         <View style={styles.footer}>
-          {currentSlide > 0 && (
-            <Button
-              label="Previous"
-              onPress={handlePrevious}
-              variant="outline"
-              style={{ flex: 1, marginRight: theme.spacing.md }}
-              accessibilityLabel="Previous slide"
-            />
-          )}
-
-          <Button
-            label={isLastSlide ? 'Get started' : 'Next'}
+          <TouchableOpacity
             onPress={handleNext}
-            style={{ flex: 1 }}
-            accessibilityLabel={isLastSlide ? 'Get started with app' : 'Next slide'}
-          />
+            style={[
+              styles.ctaButton,
+              {
+                backgroundColor: theme.colors.primary,
+                shadowColor: theme.colors.text,
+              },
+            ]}
+            accessible
+            accessibilityLabel={isLastSlide ? "Get started with app" : "Next slide"}
+            accessibilityRole="button"
+          >
+            <Text style={[styles.ctaText, { color: theme.colors.surface }]}>
+              {isLastSlide ? "GET STARTED" : "NEXT"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleSkip}
+            accessible
+            accessibilityLabel="Skip onboarding"
+            accessibilityRole="button"
+          >
+            <Text
+              style={[
+                theme.typography.bodySm,
+                styles.skipText,
+                { color: ONBOARDING_TEXT },
+              ]}
+            >
+              Skip
+            </Text>
+          </TouchableOpacity>
         </View>
       </Screen>
-    </SafeArea>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+  container: {
+    flex: 1,
+    overflow: "hidden",
+  },
+  glowTop: {
+    position: "absolute",
+    top: -80,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    opacity: 0.9,
+  },
+  glowBottom: {
+    position: "absolute",
+    bottom: -110,
+    left: -60,
+    width: 280,
+    height: 280,
+    borderRadius: 999,
+    opacity: 0.8,
+  },
+  topActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 28,
+    paddingTop: 16,
+  },
+  topActionButton: {
+    minWidth: 76,
+    minHeight: 28,
+    justifyContent: "center",
+  },
+  topActionPlaceholder: {
+    minWidth: 76,
+    minHeight: 28,
+  },
+  topActionText: {
+    fontWeight: "600",
   },
   content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 28,
+    paddingTop: 20,
   },
-  imageContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-    height: 200,
-    justifyContent: 'center',
+  heroHalo: {
+    position: "absolute",
+    top: 88,
+    width: 220,
+    height: 220,
+    borderRadius: 999,
+    opacity: 0.55,
+    transform: [{ scale: 1.1 }],
+  },
+  heroCircleLarge: {
+    position: "absolute",
+    top: 72,
+    width: 300,
+    height: 300,
+    borderRadius: 999,
+    opacity: 0.9,
+  },
+  heroCircleMedium: {
+    position: "absolute",
+    top: 110,
+    width: 248,
+    height: 248,
+    borderRadius: 999,
+    opacity: 0.9,
+  },
+  heroCircleSmall: {
+    position: "absolute",
+    top: 146,
+    width: 196,
+    height: 196,
+    borderRadius: 999,
+    opacity: 0.95,
+  },
+  imageOrb: {
+    width: 212,
+    height: 212,
+    borderRadius: 106,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 56,
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   image: {
-    height: 200,
+    width: 138,
+    height: 138,
+  },
+  title: {
+    fontSize: 30,
+    lineHeight: 40,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginBottom: 20,
+    maxWidth: 320,
+  },
+  description: {
+    textAlign: "center",
+    lineHeight: 30,
+    maxWidth: 320,
+    marginBottom: 36,
   },
   pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
-    marginVertical: 20,
+    marginTop: 8,
   },
   dot: {
-    height: 8,
-    borderRadius: 4,
+    height: 5,
+    borderRadius: 999,
   },
   footer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    gap: 12,
+    paddingHorizontal: 28,
+    paddingBottom: 32,
+    paddingTop: 24,
+  },
+  ctaButton: {
+    minHeight: 72,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 6,
+  },
+  ctaText: {
+    fontSize: 14,
+    letterSpacing: 2.2,
+    fontWeight: "700",
+  },
+  skipText: {
+    textAlign: "center",
+    marginTop: 14,
+    fontSize: 13,
   },
 });

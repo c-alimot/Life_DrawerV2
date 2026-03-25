@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
-import { lifePhaseService, type LifePhase } from '@services/supabase/lifePhases';
-import type { ApiError } from '@types';
+import { lifePhaseService } from '@services/supabase/lifePhases';
+import type { ApiError, LifePhase } from '@types';
 
 export function useLifePhase() {
   const { user } = useAuthStore();

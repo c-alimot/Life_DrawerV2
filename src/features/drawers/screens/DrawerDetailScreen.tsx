@@ -1,45 +1,56 @@
+import { SafeArea, Screen } from "@components/layout";
+import { Button } from "@components/ui";
+import { MOOD_MAP, type MoodValue } from "@constants/moods";
+import { useFocusEffect } from "@react-navigation/native";
+import { useTheme } from "@styles/theme";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  FlatList,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  TextInput,
-} from 'react-native';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState } from 'react';
-import { useTheme } from '@styles/theme';
-import { useDrawerDetail } from '../hooks/useDrawerDetail';
-import { useEditDrawer } from '../hooks/useEditDrawer';
-import { useEntries } from '@features/entries/hooks/useEntries';
-import { MOOD_MAP, type MoodValue } from '@constants/moods';
-import { Screen, SafeArea } from '@components/layout';
-import { Button } from '@components/ui';
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { useDrawerDetail } from "../hooks/useDrawerDetail";
+import { useDrawerEntries } from "../hooks/useDrawerEntries";
+import { useEditDrawer } from "../hooks/useEditDrawer";
 
 export function DrawerDetailScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { drawerId } = route.params as { drawerId: string };
+  const { drawerId } = useLocalSearchParams<{ drawerId: string }>();
+  const drawerIdValue = Array.isArray(drawerId) ? drawerId[0] : drawerId;
+  const resolvedDrawerId = drawerIdValue ?? "";
 
-  const { drawer, isLoading: drawerLoading, fetchDrawer, deleteDrawer } =
-    useDrawerDetail(drawerId);
-  const { isLoading: updateLoading, updateDrawer } = useEditDrawer(drawerId);
-  const { entries, isLoading: entriesLoading } = useEntries();
+  const {
+    drawer,
+    isLoading: drawerLoading,
+    fetchDrawer,
+    deleteDrawer,
+  } = useDrawerDetail(resolvedDrawerId);
+  const { isLoading: updateLoading, updateDrawer } =
+    useEditDrawer(resolvedDrawerId);
+  const {
+    entries: drawerEntries,
+    isLoading: entriesLoading,
+    fetchEntries,
+  } = useDrawerEntries(resolvedDrawerId);
 
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editName, setEditName] = useState('');
-  const [editColor, setEditColor] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'title'>('date');
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("");
+  const [sortBy, setSortBy] = useState<"date" | "title">("date");
 
   useFocusEffect(
     useCallback(() => {
       fetchDrawer();
-    }, [fetchDrawer])
+      fetchEntries();
+    }, [fetchDrawer, fetchEntries]),
   );
 
   // Initialize edit form
@@ -49,17 +60,12 @@ export function DrawerDetailScreen() {
         setEditName(drawer.name);
         setEditColor(drawer.color);
       }
-    }, [drawer])
+    }, [drawer]),
   );
-
-  // Get entries in this drawer
-  const drawerEntries = entries?.filter((entry) =>
-    entry.drawers?.some((d) => d.id === drawerId)
-  ) || [];
 
   // Sort entries
   const sortedEntries = [...drawerEntries].sort((a, b) => {
-    if (sortBy === 'date') {
+    if (sortBy === "date") {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     } else {
       return a.title.localeCompare(b.title);
@@ -68,7 +74,7 @@ export function DrawerDetailScreen() {
 
   const handleEdit = useCallback(async () => {
     if (!editName.trim()) {
-      Alert.alert('Error', 'Drawer name cannot be empty');
+      Alert.alert("Error", "Drawer name cannot be empty");
       return;
     }
 
@@ -78,64 +84,63 @@ export function DrawerDetailScreen() {
     });
 
     if (success) {
-      Alert.alert('Success', 'Drawer updated');
+      Alert.alert("Success", "Drawer updated");
       setShowEditModal(false);
       fetchDrawer();
     } else {
-      Alert.alert('Error', 'Failed to update drawer');
+      Alert.alert("Error", "Failed to update drawer");
     }
   }, [editName, editColor, updateDrawer, fetchDrawer]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
-      'Delete Drawer',
+      "Delete Drawer",
       `Are you sure you want to delete "${drawer?.name}"? Entries will not be deleted.`,
       [
-        { text: 'Cancel', onPress: () => {} },
+        { text: "Cancel", onPress: () => {} },
         {
-          text: 'Delete',
+          text: "Delete",
           onPress: async () => {
             const success = await deleteDrawer();
             if (success) {
-              Alert.alert('Success', 'Drawer deleted');
-              navigation.goBack();
+              Alert.alert("Success", "Drawer deleted");
+              router.back();
             } else {
-              Alert.alert('Error', 'Failed to delete drawer');
+              Alert.alert("Error", "Failed to delete drawer");
             }
           },
-          style: 'destructive',
+          style: "destructive",
         },
-      ]
+      ],
     );
-  }, [drawer?.name, deleteDrawer, navigation]);
+  }, [drawer?.name, deleteDrawer]);
 
-  const handleEntryPress = useCallback(
-    (entryId: string) => {
-      navigation.navigate('EntryDetail', { entryId } as any);
-    },
-    [navigation]
-  );
+  const handleEntryPress = useCallback((entryId: string) => {
+    router.push(`/entry/${entryId}`);
+  }, []);
 
   const handleCreateEntry = useCallback(() => {
-    navigation.navigate('CreateEntry', { drawerId } as any);
-  }, [navigation, drawerId]);
+    router.push(
+      `/create-entry?drawerId=${encodeURIComponent(resolvedDrawerId)}`,
+    );
+  }, [resolvedDrawerId]);
 
   const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+    router.back();
+  }, []);
 
   const colorOptions = [
-    '#FF6B6B',
-    '#4ECDC4',
-    '#45B7D1',
-    '#FFA07A',
-    '#98D8C8',
-    '#F7DC6F',
-    '#BB8FCE',
-    '#85C1E2',
+    "#FF6B6B",
+    "#4ECDC4",
+    "#45B7D1",
+    "#FFA07A",
+    "#98D8C8",
+    "#F7DC6F",
+    "#BB8FCE",
+    "#85C1E2",
   ];
 
-  if (drawerLoading) {
+  if (drawerLoading || entriesLoading) {
     return (
       <SafeArea>
         <Screen style={styles.container}>
@@ -166,8 +171,14 @@ export function DrawerDetailScreen() {
       <Screen style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} accessible accessibilityLabel="Go back">
-            <Text style={[theme.typography.h2, { color: theme.colors.text }]}>←</Text>
+          <TouchableOpacity
+            onPress={handleBack}
+            accessible
+            accessibilityLabel="Go back"
+          >
+            <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+              ←
+            </Text>
           </TouchableOpacity>
           <View style={styles.headerActions}>
             <Button
@@ -182,7 +193,9 @@ export function DrawerDetailScreen() {
               accessibilityLabel="Delete drawer"
               style={{ marginLeft: theme.spacing.sm }}
             >
-              <Text style={[theme.typography.body, { color: theme.colors.error }]}>
+              <Text
+                style={[theme.typography.body, { color: theme.colors.error }]}
+              >
                 🗑️
               </Text>
             </TouchableOpacity>
@@ -198,7 +211,7 @@ export function DrawerDetailScreen() {
             style={[
               styles.drawerInfoCard,
               {
-                backgroundColor: drawer.color + '20',
+                backgroundColor: drawer.color + "20",
                 borderColor: drawer.color,
               },
             ]}
@@ -216,14 +229,12 @@ export function DrawerDetailScreen() {
                   { color: theme.colors.textSecondary, marginTop: 4 },
                 ]}
               >
-                {drawerEntries.length} {drawerEntries.length === 1 ? 'entry' : 'entries'}
+                {drawerEntries.length}{" "}
+                {drawerEntries.length === 1 ? "entry" : "entries"}
               </Text>
             </View>
             <View
-              style={[
-                styles.colorDot,
-                { backgroundColor: drawer.color },
-              ]}
+              style={[styles.colorDot, { backgroundColor: drawer.color }]}
             />
           </View>
 
@@ -245,14 +256,16 @@ export function DrawerDetailScreen() {
             >
               Sort by:
             </Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 8 }}>
               <TouchableOpacity
-                onPress={() => setSortBy('date')}
+                onPress={() => setSortBy("date")}
                 style={[
                   styles.sortButton,
                   {
                     backgroundColor:
-                      sortBy === 'date' ? theme.colors.primary : theme.colors.surface,
+                      sortBy === "date"
+                        ? theme.colors.primary
+                        : theme.colors.surface,
                     borderColor: theme.colors.border,
                   },
                 ]}
@@ -265,7 +278,7 @@ export function DrawerDetailScreen() {
                     theme.typography.bodySm,
                     {
                       color:
-                        sortBy === 'date'
+                        sortBy === "date"
                           ? theme.colors.background
                           : theme.colors.text,
                     },
@@ -275,12 +288,12 @@ export function DrawerDetailScreen() {
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setSortBy('title')}
+                onPress={() => setSortBy("title")}
                 style={[
                   styles.sortButton,
                   {
                     backgroundColor:
-                      sortBy === 'title'
+                      sortBy === "title"
                         ? theme.colors.primary
                         : theme.colors.surface,
                     borderColor: theme.colors.border,
@@ -295,7 +308,7 @@ export function DrawerDetailScreen() {
                     theme.typography.bodySm,
                     {
                       color:
-                        sortBy === 'title'
+                        sortBy === "title"
                           ? theme.colors.background
                           : theme.colors.text,
                     },
@@ -324,7 +337,7 @@ export function DrawerDetailScreen() {
                   {
                     color: theme.colors.textSecondary,
                     marginTop: theme.spacing.md,
-                    textAlign: 'center',
+                    textAlign: "center",
                   },
                 ]}
               >
@@ -370,14 +383,11 @@ export function DrawerDetailScreen() {
                           },
                         ]}
                       >
-                        {new Date(item.createdAt).toLocaleDateString(
-                          'en-US',
-                          {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          }
-                        )}
+                        {new Date(item.createdAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
                       </Text>
                     </View>
                     {item.mood && (
@@ -403,17 +413,32 @@ export function DrawerDetailScreen() {
                   {/* Entry Metadata */}
                   <View style={styles.entryMeta}>
                     {item.images && item.images.length > 0 && (
-                      <Text style={[theme.typography.labelXs, { color: theme.colors.primary }]}>
+                      <Text
+                        style={[
+                          theme.typography.labelXs,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
                         🖼️ {item.images.length}
                       </Text>
                     )}
                     {item.audioUrl && (
-                      <Text style={[theme.typography.labelXs, { color: theme.colors.primary }]}>
+                      <Text
+                        style={[
+                          theme.typography.labelXs,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
                         🎙️
                       </Text>
                     )}
                     {item.location && (
-                      <Text style={[theme.typography.labelXs, { color: theme.colors.primary }]}>
+                      <Text
+                        style={[
+                          theme.typography.labelXs,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
                         📍
                       </Text>
                     )}
@@ -421,14 +446,21 @@ export function DrawerDetailScreen() {
 
                   {/* Tags */}
                   {item.tags && item.tags.length > 0 && (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: theme.spacing.sm }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: 4,
+                        marginTop: theme.spacing.sm,
+                      }}
+                    >
                       {item.tags.slice(0, 3).map((tag) => (
                         <View
                           key={tag.id}
                           style={[
                             styles.tagBadge,
                             {
-                              backgroundColor: tag.color + '30',
+                              backgroundColor: tag.color + "30",
                               borderColor: tag.color,
                             },
                           ]}
@@ -477,7 +509,9 @@ export function DrawerDetailScreen() {
               ]}
             >
               <View style={styles.modalHeader}>
-                <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+                <Text
+                  style={[theme.typography.h2, { color: theme.colors.text }]}
+                >
                   Edit Drawer
                 </Text>
                 <TouchableOpacity
@@ -485,7 +519,9 @@ export function DrawerDetailScreen() {
                   accessible
                   accessibilityLabel="Close"
                 >
-                  <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
+                  <Text
+                    style={[theme.typography.h3, { color: theme.colors.text }]}
+                  >
                     ✕
                   </Text>
                 </TouchableOpacity>
@@ -539,8 +575,8 @@ export function DrawerDetailScreen() {
                   </Text>
                   <View
                     style={{
-                      flexDirection: 'row',
-                      flexWrap: 'wrap',
+                      flexDirection: "row",
+                      flexWrap: "wrap",
                       gap: 12,
                       marginBottom: theme.spacing.lg,
                     }}
@@ -556,7 +592,7 @@ export function DrawerDetailScreen() {
                             borderColor:
                               editColor === color
                                 ? theme.colors.primary
-                                : 'transparent',
+                                : "transparent",
                             borderWidth: editColor === color ? 3 : 0,
                           },
                         ]}
@@ -574,7 +610,7 @@ export function DrawerDetailScreen() {
 
                 {/* Save Button */}
                 <Button
-                  label={updateLoading ? 'Saving...' : 'Save Changes'}
+                  label={updateLoading ? "Saving..." : "Save Changes"}
                   onPress={handleEdit}
                   disabled={updateLoading}
                   accessibilityLabel="Save drawer changes"
@@ -593,15 +629,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   content: {
     paddingHorizontal: 20,
@@ -609,8 +645,8 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   drawerInfoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
@@ -626,9 +662,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   sortBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   sortButton: {
@@ -647,12 +683,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   entryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   entryMeta: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginTop: 8,
   },
@@ -664,23 +700,23 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 20,
     minHeight: 300,
   },
   loaderContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContainer: {
     flex: 1,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
@@ -697,10 +733,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   colorOption: {
-    width: '23%',
+    width: "23%",
     aspectRatio: 1,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

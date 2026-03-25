@@ -73,4 +73,22 @@ export const tagsApi = {
       };
     }
   },
+
+  async searchTags(userId: string, query: string) {
+    try {
+      const result = await tagsService.searchTags(userId, query);
+      return {
+        success: true,
+        data: { tags: result },
+        error: null,
+      };
+    } catch (error) {
+      console.error("Tags API search error:", error);
+      return {
+        success: false,
+        data: null,
+        error: error as ApiError,
+      };
+    }
+  },
 };

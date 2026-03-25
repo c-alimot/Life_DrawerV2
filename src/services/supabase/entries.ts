@@ -1,301 +1,333 @@
-import { API_ERRORS } from '@constants/errors';
+import { API_ERRORS } from "@constants/errors";
 import {
   ApiError,
   CreateEntryRequest,
   Entry,
+  EntryLocation,
   EntryWithRelations,
+  LifePhase,
+  MoodValue,
   SearchEntriesRequest,
   UpdateEntryRequest,
-} from '@types';
-import { supabase } from './client';
+} from "@types";
+import { supabase } from "./client";
+
+type EntryRow = {
+  id: string;
+  user_id: string;
+  life_phase_id: string | null;
+  title: string;
+  content: string | null;
+  mood: string | null;
+  images: unknown;
+  audio_url: string | null;
+  location: unknown;
+  occurred_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DrawerRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TagRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type LifePhaseRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+const MEDIA_BUCKET = "entry-media";
 
 export const entriesService = {
-  /**
-   * Create a new entry
-   */
   async createEntry(userId: string, request: CreateEntryRequest) {
     try {
-      // Step 1: Create entry
       const { data: entry, error: entryError } = await supabase
-        .from('entries')
+        .from("entries")
         .insert({
           user_id: userId,
           title: request.title,
-          content: request.content,
-          mood: (request.mood || null) as any,
+          content: request.content || null,
+          mood: request.mood || null,
+          life_phase_id: request.lifePhaseId || null,
+          occurred_at: request.occurredAt || null,
         })
-        .select()
+        .select("*")
         .single();
 
       if (entryError || !entry) {
-        throw entryError || new Error('Failed to create entry');
+        throw entryError || new Error("Failed to create entry");
       }
 
-      // Step 2: Link drawers
-      if (request.drawerIds && request.drawerIds.length > 0) {
-        const { error: drawerError } = await supabase.from('entry_drawers').insert(
+      let imageUrls: string[] = [];
+      let audioUrl: string | null = null;
+
+      if (request.imageUris?.length) {
+        imageUrls = await Promise.all(
+          request.imageUris.map((uri, index) =>
+            this.uploadFile(uri, `${userId}/${entry.id}/images/${Date.now()}-${index}${this.getExtension(uri)}`),
+          ),
+        );
+      }
+
+      if (request.audioUri) {
+        audioUrl = await this.uploadFile(
+          request.audioUri,
+          `${userId}/${entry.id}/audio/${Date.now()}${this.getExtension(request.audioUri)}`,
+        );
+      }
+
+      const { error: updateMediaError } = await supabase
+        .from("entries")
+        .update({
+          images: imageUrls,
+          audio_url: audioUrl,
+          location: (request.location || null) as any,
+        })
+        .eq("id", entry.id)
+        .eq("user_id", userId);
+
+      if (updateMediaError) {
+        throw updateMediaError;
+      }
+
+      if (request.drawerIds?.length) {
+        const { error } = await supabase.from("entry_drawers").insert(
           request.drawerIds.map((drawerId) => ({
             user_id: userId,
             entry_id: entry.id,
             drawer_id: drawerId,
-          }))
+          })),
         );
 
-        if (drawerError) {
-          // Clean up entry if drawer linking fails
-          await supabase.from('entries').delete().eq('id', entry.id);
-          throw drawerError;
+        if (error) {
+          throw error;
         }
       }
 
-      // Step 3: Link tags
-      if (request.tagIds && request.tagIds.length > 0) {
-        const { error: tagError } = await supabase.from('entry_tags').insert(
+      if (request.tagIds?.length) {
+        const { error } = await supabase.from("entry_tags").insert(
           request.tagIds.map((tagId) => ({
             user_id: userId,
             entry_id: entry.id,
             tag_id: tagId,
-          }))
+          })),
         );
 
-        if (tagError) {
-          // Clean up entry if tag linking fails
-          await supabase.from('entries').delete().eq('id', entry.id);
-          throw tagError;
+        if (error) {
+          throw error;
         }
       }
 
-      // Step 4: Fetch entry with relations
       return this.getEntryById(entry.id, userId);
     } catch (error) {
-      console.error('Create entry error:', error);
+      console.error("Create entry error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get entry by ID with all relations
-   */
   async getEntryById(entryId: string, userId: string): Promise<EntryWithRelations> {
     try {
-      // Fetch entry
       const { data: entry, error: entryError } = await supabase
-        .from('entries')
-        .select()
-        .eq('id', entryId)
-        .eq('user_id', userId)
+        .from("entries")
+        .select("*")
+        .eq("id", entryId)
+        .eq("user_id", userId)
         .single();
 
       if (entryError || !entry) {
-        throw entryError || new Error('Entry not found');
+        throw entryError || new Error("Entry not found");
       }
 
-      // Fetch drawers through junction table
-      const { data: entryDrawersData, error: drawerError } = await supabase
-        .from('entry_drawers')
-        .select('drawer_id')
-        .eq('entry_id', entryId);
-
-      if (drawerError) throw drawerError;
-
-      const drawerIds = entryDrawersData?.map((ed) => ed.drawer_id) || [];
-
-      const drawers = drawerIds.length > 0
-        ? (
-            await supabase
-              .from('drawers')
-              .select()
-              .in('id', drawerIds)
-          ).data?.map(this.mapDrawerRow) || []
-        : [];
-
-      // Fetch tags through junction table
-      const { data: entryTagsData, error: tagError } = await supabase
-        .from('entry_tags')
-        .select('tag_id')
-        .eq('entry_id', entryId);
-
-      if (tagError) throw tagError;
-
-      const tagIds = entryTagsData?.map((et) => et.tag_id) || [];
-
-      const tags = tagIds.length > 0
-        ? (
-            await supabase
-              .from('tags')
-              .select()
-              .in('id', tagIds)
-          ).data?.map(this.mapTagRow) || []
-        : [];
-
-      // Fetch author
-      const { data: author, error: authorError } = await supabase
-        .from('profiles')
-        .select()
-        .eq('id', entry.user_id)
-        .single();
-
-      if (authorError || !author) {
-        throw authorError || new Error('Author not found');
-      }
+      const [drawers, tags, author, lifePhase] = await Promise.all([
+        this.getEntryDrawers(entryId),
+        this.getEntryTags(entryId),
+        this.getAuthorProfile(userId),
+        entry.life_phase_id ? this.getLifePhase(entry.life_phase_id, userId) : Promise.resolve(null),
+      ]);
 
       return {
-        ...this.mapEntryRow(entry),
+        ...this.mapEntryRow(entry as EntryRow),
         drawers,
         tags,
-        author: this.mapProfileRow(author),
+        author,
+        lifePhase,
       };
     } catch (error) {
-      console.error('Get entry error:', error);
+      console.error("Get entry error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get entries with optional filters
-   */
   async getEntries(userId: string, request?: SearchEntriesRequest) {
     try {
       let query = supabase
-        .from('entries')
-        .select('*', { count: 'exact' })
-        .eq('user_id', userId);
+        .from("entries")
+        .select("*", { count: "exact" })
+        .eq("user_id", userId);
 
-      // Text search
       if (request?.query) {
-        query = query.or(
-          `title.ilike.%${request.query}%,content.ilike.%${request.query}%`
-        );
+        query = query.or(`title.ilike.%${request.query}%,content.ilike.%${request.query}%`);
       }
 
-      // Mood filter
-      if (request?.moodValues && request.moodValues.length > 0) {
-        query = query.in('mood', request.moodValues as any);
+      if (request?.moodValues?.length) {
+        query = query.in("mood", request.moodValues);
       }
 
-      // Date range
       if (request?.startDate) {
-        query = query.gte('created_at', request.startDate);
+        query = query.gte("created_at", request.startDate);
       }
 
       if (request?.endDate) {
-        query = query.lte('created_at', request.endDate);
+        query = query.lte("created_at", request.endDate);
       }
 
-      // Sorting and pagination
       query = query
-        .order('created_at', { ascending: false })
-        .range(
-          request?.offset || 0,
-          (request?.offset || 0) + (request?.limit || 20) - 1
-        );
+        .order("created_at", { ascending: false })
+        .range(request?.offset || 0, (request?.offset || 0) + (request?.limit || 20) - 1);
 
       const { data: entries, error: entriesError, count } = await query;
-
       if (entriesError) throw entriesError;
 
-      // For drawer and tag filtering, we need to fetch and filter manually
-      let filteredEntries = entries || [];
+      let filteredEntries = (entries || []) as EntryRow[];
 
-      if (
-        (request?.drawerIds && request.drawerIds.length > 0) ||
-        (request?.tagIds && request.tagIds.length > 0)
-      ) {
+      if (request?.drawerIds?.length || request?.tagIds?.length) {
         filteredEntries = await this.filterByDrawersAndTags(
           filteredEntries,
           request?.drawerIds,
           request?.tagIds,
-          userId
         );
       }
 
-      // Fetch relations for each entry
       const entriesWithRelations = await Promise.all(
-        filteredEntries.map(async (entry) => {
-          try {
-            return await this.getEntryById(entry.id, userId);
-          } catch {
-            return null;
-          }
-        })
+        filteredEntries.map((entry) => this.getEntryById(entry.id, userId)),
       );
 
-      const validEntries = entriesWithRelations.filter(
-        Boolean
-      ) as EntryWithRelations[];
-
       return {
-        entries: validEntries,
+        entries: entriesWithRelations,
         total: count || 0,
         hasMore: (count || 0) > ((request?.offset || 0) + (request?.limit || 20)),
       };
     } catch (error) {
-      console.error('Get entries error:', error);
+      console.error("Get entries error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get recent entries for home screen
-   */
-  async getRecentEntries(userId: string, limit: number = 10) {
+  async getRecentEntries(userId: string, limit = 10) {
     return this.getEntries(userId, { limit, offset: 0 });
   },
 
-  /**
-   * Update entry
-   */
-  async updateEntry(
-    entryId: string,
-    userId: string,
-    request: UpdateEntryRequest
-  ): Promise<EntryWithRelations> {
+  async updateEntry(entryId: string, userId: string, request: UpdateEntryRequest) {
     try {
+      let imageUrls = request.imageUris;
+      if (request.imageUris?.length) {
+        imageUrls = await Promise.all(
+          request.imageUris.map((uri, index) =>
+            this.uploadFile(uri, `${userId}/${entryId}/images/${Date.now()}-${index}${this.getExtension(uri)}`),
+          ),
+        );
+      }
+
       const { error } = await supabase
-        .from('entries')
+        .from("entries")
         .update({
           title: request.title,
           content: request.content,
-          mood: (request.mood as any),
+          mood: request.mood,
+          images: imageUrls,
+          audio_url: request.audioUrl,
+          location: request.location as any,
+          life_phase_id: request.lifePhaseId,
+          occurred_at: request.occurredAt,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', entryId)
-        .eq('user_id', userId);
+        .eq("id", entryId)
+        .eq("user_id", userId);
 
       if (error) throw error;
+
+      if (request.drawerIds) {
+        await supabase.from("entry_drawers").delete().eq("entry_id", entryId).eq("user_id", userId);
+        if (request.drawerIds.length) {
+          await supabase.from("entry_drawers").insert(
+            request.drawerIds.map((drawerId) => ({
+              user_id: userId,
+              entry_id: entryId,
+              drawer_id: drawerId,
+            })),
+          );
+        }
+      }
+
+      if (request.tagIds) {
+        await supabase.from("entry_tags").delete().eq("entry_id", entryId).eq("user_id", userId);
+        if (request.tagIds.length) {
+          await supabase.from("entry_tags").insert(
+            request.tagIds.map((tagId) => ({
+              user_id: userId,
+              entry_id: entryId,
+              tag_id: tagId,
+            })),
+          );
+        }
+      }
 
       return this.getEntryById(entryId, userId);
     } catch (error) {
-      console.error('Update entry error:', error);
+      console.error("Update entry error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Delete entry (soft delete)
-   */
-  async deleteEntry(entryId: string, userId: string): Promise<void> {
+  async deleteEntry(entryId: string, userId: string) {
     try {
-      // Note: deleted_at column not yet migrated. For now, perform hard delete.
       const { error } = await supabase
-        .from('entries')
+        .from("entries")
         .delete()
-        .eq('id', entryId)
-        .eq('user_id', userId);
+        .eq("id", entryId)
+        .eq("user_id", userId);
 
       if (error) throw error;
     } catch (error) {
-      console.error('Delete entry error:', error);
+      console.error("Delete entry error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Link entry to drawer
-   */
-  async linkEntryToDrawer(entryId: string, drawerId: string, userId: string): Promise<void> {
+  async linkEntryToDrawer(entryId: string, drawerId: string, userId: string) {
     try {
-      const { error } = await supabase.from('entry_drawers').insert({
+      const { error } = await supabase.from("entry_drawers").insert({
         user_id: userId,
         entry_id: entryId,
         drawer_id: drawerId,
@@ -303,35 +335,34 @@ export const entriesService = {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Link entry to drawer error:', error);
+      console.error("Link entry to drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Unlink entry from drawer
-   */
-  async unlinkEntryFromDrawer(entryId: string, drawerId: string): Promise<void> {
+  async unlinkEntryFromDrawer(entryId: string, drawerId: string, userId?: string) {
     try {
-      const { error } = await supabase
-        .from('entry_drawers')
+      let query = supabase
+        .from("entry_drawers")
         .delete()
-        .eq('entry_id', entryId)
-        .eq('drawer_id', drawerId);
+        .eq("entry_id", entryId)
+        .eq("drawer_id", drawerId);
 
+      if (userId) {
+        query = query.eq("user_id", userId);
+      }
+
+      const { error } = await query;
       if (error) throw error;
     } catch (error) {
-      console.error('Unlink entry from drawer error:', error);
+      console.error("Unlink entry from drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Link entry to tag
-   */
-  async linkEntryToTag(entryId: string, tagId: string, userId: string): Promise<void> {
+  async linkEntryToTag(entryId: string, tagId: string, userId: string) {
     try {
-      const { error } = await supabase.from('entry_tags').insert({
+      const { error } = await supabase.from("entry_tags").insert({
         user_id: userId,
         entry_id: entryId,
         tag_id: tagId,
@@ -339,36 +370,98 @@ export const entriesService = {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Link entry to tag error:', error);
+      console.error("Link entry to tag error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Unlink entry from tag
-   */
-  async unlinkEntryFromTag(entryId: string, tagId: string): Promise<void> {
+  async unlinkEntryFromTag(entryId: string, tagId: string, userId?: string) {
     try {
-      const { error } = await supabase
-        .from('entry_tags')
+      let query = supabase
+        .from("entry_tags")
         .delete()
-        .eq('entry_id', entryId)
-        .eq('tag_id', tagId);
+        .eq("entry_id", entryId)
+        .eq("tag_id", tagId);
 
+      if (userId) {
+        query = query.eq("user_id", userId);
+      }
+
+      const { error } = await query;
       if (error) throw error;
     } catch (error) {
-      console.error('Unlink entry from tag error:', error);
+      console.error("Unlink entry from tag error:", error);
       throw this.handleError(error);
     }
   },
 
-  // ==================== HELPERS ====================
+  async getEntryDrawers(entryId: string) {
+    const { data: entryDrawersData, error } = await supabase
+      .from("entry_drawers")
+      .select("drawer_id")
+      .eq("entry_id", entryId);
 
-  private async filterByDrawersAndTags(
-    entries: any[],
+    if (error) throw error;
+
+    const drawerIds = entryDrawersData?.map((row) => row.drawer_id) || [];
+    if (!drawerIds.length) {
+      return [];
+    }
+
+    const { data } = await supabase.from("drawers").select("*").in("id", drawerIds);
+    return (data || []).map((row) => this.mapDrawerRow(row as DrawerRow));
+  },
+
+  async getEntryTags(entryId: string) {
+    const { data: entryTagsData, error } = await supabase
+      .from("entry_tags")
+      .select("tag_id")
+      .eq("entry_id", entryId);
+
+    if (error) throw error;
+
+    const tagIds = entryTagsData?.map((row) => row.tag_id) || [];
+    if (!tagIds.length) {
+      return [];
+    }
+
+    const { data } = await supabase.from("tags").select("*").in("id", tagIds);
+    return (data || []).map((row) => this.mapTagRow(row as TagRow));
+  },
+
+  async getAuthorProfile(userId: string) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error || !data) {
+      return undefined;
+    }
+
+    return this.mapProfileRow(data as ProfileRow);
+  },
+
+  async getLifePhase(lifePhaseId: string, userId: string): Promise<LifePhase | null> {
+    const { data, error } = await supabase
+      .from("life_phases")
+      .select("*")
+      .eq("id", lifePhaseId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return this.mapLifePhaseRow(data as LifePhaseRow);
+  },
+
+  async filterByDrawersAndTags(
+    entries: EntryRow[],
     drawerIds?: string[],
     tagIds?: string[],
-    userId?: string
   ) {
     if (!drawerIds?.length && !tagIds?.length) {
       return entries;
@@ -376,84 +469,156 @@ export const entriesService = {
 
     const filteredEntryIds = new Set<string>();
 
-    // Filter by drawers
     if (drawerIds?.length) {
-      const { data: entryDrawersData } = await supabase
-        .from('entry_drawers')
-        .select('entry_id')
-        .in('drawer_id', drawerIds);
+      const { data } = await supabase
+        .from("entry_drawers")
+        .select("entry_id")
+        .in("drawer_id", drawerIds);
 
-      entryDrawersData?.forEach((ed) => filteredEntryIds.add(ed.entry_id));
+      data?.forEach((row) => filteredEntryIds.add(row.entry_id));
     }
 
-    // Filter by tags
     if (tagIds?.length) {
-      const { data: entryTagsData } = await supabase
-        .from('entry_tags')
-        .select('entry_id')
-        .in('tag_id', tagIds);
-
-      entryTagsData?.forEach((et) => filteredEntryIds.add(et.entry_id));
+      const { data } = await supabase.from("entry_tags").select("entry_id").in("tag_id", tagIds);
+      data?.forEach((row) => filteredEntryIds.add(row.entry_id));
     }
 
     return entries.filter((entry) => filteredEntryIds.has(entry.id));
   },
 
-  private mapEntryRow(row: any): Entry {
+  async uploadFile(uri: string, path: string) {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, blob, {
+      upsert: true,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  },
+
+  getExtension(uri: string) {
+    const match = uri.match(/\.[a-zA-Z0-9]+$/);
+    return match ? match[0] : "";
+  },
+
+  mapEntryRow(row: EntryRow): Entry {
     return {
       id: row.id,
       userId: row.user_id,
       title: row.title,
-      content: row.content,
-      mood: row.mood,
+      content: row.content || "",
+      mood: this.normalizeMood(row.mood),
+      images: this.parseImages(row.images),
+      audioUrl: row.audio_url ?? undefined,
+      location: this.parseLocation(row.location),
+      lifePhaseId: row.life_phase_id ?? undefined,
+      occurredAt: row.occurred_at ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      deletedAt: row.deleted_at,
     };
   },
 
-  private mapDrawerRow(row: any) {
+  mapDrawerRow(row: DrawerRow) {
     return {
       id: row.id,
       userId: row.user_id,
       name: row.name,
-      description: row.description,
-      color: row.color,
-      icon: row.icon,
+      description: row.description ?? undefined,
+      color: row.color ?? "#7C9E7F",
+      icon: row.icon ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   },
 
-  private mapTagRow(row: any) {
+  mapTagRow(row: TagRow) {
     return {
       id: row.id,
       userId: row.user_id,
       name: row.name,
-      color: row.color,
+      color: row.color ?? "#7C9E7F",
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   },
 
-  private mapProfileRow(row: any) {
+  mapProfileRow(row: ProfileRow) {
     return {
       id: row.id,
-      email: row.email,
-      displayName: row.display_name,
+      email: "",
+      displayName: row.display_name ?? undefined,
+      avatarUrl: row.avatar_url ?? undefined,
       createdAt: row.created_at,
-      updatedAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   },
 
-  private handleError(error: any): ApiError {
-    const errorMessage = (error?.message || 'Unknown error').toLowerCase();
+  mapLifePhaseRow(row: LifePhaseRow): LifePhase {
+    return {
+      id: row.id,
+      userId: row.user_id,
+      name: row.name,
+      description: row.description ?? undefined,
+      startsOn: row.starts_on ?? undefined,
+      endsOn: row.ends_on ?? undefined,
+      isActive: row.is_active,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  },
 
-    if (errorMessage.includes('not found')) {
+  parseImages(value: unknown) {
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  },
+
+  parseLocation(value: unknown): EntryLocation | undefined {
+    if (!value || typeof value !== "object") {
+      return undefined;
+    }
+
+    const candidate = value as Partial<EntryLocation>;
+    if (typeof candidate.latitude !== "number" || typeof candidate.longitude !== "number") {
+      return undefined;
+    }
+
+    return {
+      latitude: candidate.latitude,
+      longitude: candidate.longitude,
+      address: typeof candidate.address === "string" ? candidate.address : undefined,
+    };
+  },
+
+  normalizeMood(value: string | null): MoodValue | undefined {
+    const allowed: MoodValue[] = [
+      "happy",
+      "calm",
+      "inspired",
+      "grateful",
+      "anxious",
+      "stressed",
+      "angry",
+      "sad",
+      "tired",
+      "bored",
+      "meh",
+    ];
+
+    return value && allowed.includes(value as MoodValue) ? (value as MoodValue) : undefined;
+  },
+
+  handleError(error: any): ApiError {
+    const errorMessage = (error?.message || "Unknown error").toLowerCase();
+
+    if (errorMessage.includes("not found")) {
       return API_ERRORS.ENTRY_NOT_FOUND;
     }
 
-    if (errorMessage.includes('unauthorized')) {
+    if (errorMessage.includes("unauthorized")) {
       return API_ERRORS.UNAUTHORIZED;
     }
 

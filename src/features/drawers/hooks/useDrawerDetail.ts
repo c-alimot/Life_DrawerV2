@@ -1,45 +1,71 @@
-import { useState, useCallback } from 'react';
-import { useAuthStore } from '@store';
-import { deleteDrawer as deleteDrawerAPI } from '@services/supabase/drawers';
-import type { Drawer } from '@types';
+import { useState, useCallback } from "react";
+import { useAuthStore } from "@store";
+import { drawersApi } from "../api/drawers.api";
+import type { ApiError, DrawerWithRelations } from "@types";
 
 export function useDrawerDetail(drawerId: string) {
-  const [drawer, setDrawer] = useState<Drawer | null>(null);
+  const { user } = useAuthStore();
+  const [drawer, setDrawer] = useState<DrawerWithRelations | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { session } = useAuthStore();
+  const [error, setError] = useState<ApiError | null>(null);
 
   const fetchDrawer = useCallback(async () => {
-    if (!session?.user?.id) return;
+    if (!user || !drawerId) return;
+
     setIsLoading(true);
+    setError(null);
+
     try {
-      // Fetch from your API
-      const response = await fetch(
-        `/api/drawers/${drawerId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+      const result = await drawersApi.getDrawer(drawerId, user.id);
+
+      if (!result.success || !result.data) {
+        setError(
+          result.error || {
+            code: "UNKNOWN_ERROR",
+            message: "Failed to fetch drawer",
           },
-        }
-      );
-      const data = await response.json();
-      setDrawer(data);
+        );
+        return;
+      }
+
+      setDrawer(result.data);
     } catch (error) {
-      console.error('Error fetching drawer:', error);
+      const apiError = error as ApiError;
+      setError(apiError);
+      console.error("Error fetching drawer:", apiError);
     } finally {
       setIsLoading(false);
     }
-  }, [session, drawerId]);
+  }, [user, drawerId]);
 
   const deleteDrawer = useCallback(async () => {
-    if (!session?.user?.id) return false;
+    if (!user || !drawerId) return false;
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      await deleteDrawerAPI(drawerId, session.access_token);
+      const result = await drawersApi.deleteDrawer(drawerId, user.id);
+      if (!result.success) {
+        setError(
+          result.error || {
+            code: "UNKNOWN_ERROR",
+            message: "Failed to delete drawer",
+          },
+        );
+        return false;
+      }
+
       return true;
     } catch (error) {
-      console.error('Error deleting drawer:', error);
+      const apiError = error as ApiError;
+      setError(apiError);
+      console.error("Error deleting drawer:", apiError);
       return false;
+    } finally {
+      setIsLoading(false);
     }
-  }, [session, drawerId]);
+  }, [user, drawerId]);
 
-  return { drawer, isLoading, fetchDrawer, deleteDrawer };
+  return { drawer, isLoading, error, fetchDrawer, deleteDrawer };
 }

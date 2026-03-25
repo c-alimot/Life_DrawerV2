@@ -1,13 +1,10 @@
 import { SafeArea, Screen } from "@components/layout";
 import { Button } from "@components/ui";
 import { MOOD_MAP } from "@constants/moods";
-import {
-    useFocusEffect,
-    useNavigation,
-    useRoute,
-} from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
 import type { MoodValue } from "@types";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import {
     ActivityIndicator,
@@ -27,11 +24,11 @@ type TabType = "content" | "media" | "details";
 
 export function EntryDetailScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { entryId } = route.params as { entryId: string };
+  const { entryId } = useLocalSearchParams<{ entryId: string }>();
+  const entryIdValue = Array.isArray(entryId) ? entryId[0] : entryId;
+  const resolvedEntryId = entryIdValue ?? "";
   const { entry, isLoading, fetchEntry, deleteEntry, unlinkDrawer, unlinkTag } =
-    useEntryDetail(entryId);
+    useEntryDetail(resolvedEntryId);
   const { isPlaying, duration, position, play } = useAudioPlayer(
     entry?.audioUrl || null,
   );
@@ -45,8 +42,8 @@ export function EntryDetailScreen() {
   );
 
   const handleEdit = useCallback(() => {
-    navigation.navigate("EditEntry" as never, { entryId } as never);
-  }, [navigation, entryId]);
+    router.push(`/edit-entry/${resolvedEntryId}`);
+  }, [resolvedEntryId]);
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete Entry", "Are you sure you want to delete this entry?", [
@@ -57,7 +54,7 @@ export function EntryDetailScreen() {
           const success = await deleteEntry();
           if (success) {
             Alert.alert("Success", "Entry deleted");
-            navigation.goBack();
+            router.back();
           } else {
             Alert.alert("Error", "Failed to delete entry");
           }
@@ -65,7 +62,7 @@ export function EntryDetailScreen() {
         style: "destructive",
       },
     ]);
-  }, [deleteEntry, navigation]);
+  }, [deleteEntry]);
 
   const handleRemoveDrawer = useCallback(
     (drawerId: string) => {
@@ -100,8 +97,8 @@ export function EntryDetailScreen() {
   );
 
   const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+    router.back();
+  }, []);
 
   if (isLoading) {
     return (
@@ -442,6 +439,44 @@ export function EntryDetailScreen() {
           {/* Details Tab */}
           {activeTab === "details" && (
             <View>
+              {entry.lifePhase && (
+                <View style={{ marginBottom: theme.spacing.lg }}>
+                  <Text
+                    style={[
+                      theme.typography.labelSm,
+                      {
+                        color: theme.colors.textSecondary,
+                        marginBottom: theme.spacing.sm,
+                        textTransform: "uppercase",
+                      },
+                    ]}
+                  >
+                    Life Phase
+                  </Text>
+                  <Text
+                    style={[
+                      theme.typography.body,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    {entry.lifePhase.name}
+                  </Text>
+                  {entry.lifePhase.description && (
+                    <Text
+                      style={[
+                        theme.typography.bodySm,
+                        {
+                          color: theme.colors.textSecondary,
+                          marginTop: theme.spacing.xs,
+                        },
+                      ]}
+                    >
+                      {entry.lifePhase.description}
+                    </Text>
+                  )}
+                </View>
+              )}
+
               {/* Location */}
               {entry.location && (
                 <View style={{ marginBottom: theme.spacing.lg }}>

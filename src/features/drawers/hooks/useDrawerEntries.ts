@@ -1,11 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
 import { drawersApi } from '../api/drawers.api';
-import type { Entry, ApiError } from '@types';
+import type { EntryWithRelations, ApiError } from '@types';
 
 export function useDrawerEntries(drawerId: string) {
   const { user } = useAuthStore();
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<EntryWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [total, setTotal] = useState(0);

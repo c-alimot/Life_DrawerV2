@@ -1,171 +1,148 @@
-import { supabase } from './client';
-import { ApiError } from '@types';
-import { API_ERRORS } from '@constants/errors';
+import { API_ERRORS } from "@constants/errors";
+import { ApiError, LifePhase } from "@types";
+import { supabase } from "./client";
 
-export interface LifePhase {
+type LifePhaseRow = {
   id: string;
-  userId: string;
+  user_id: string;
   name: string;
-  description?: string;
-  startDate?: string;
-  endDate?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+  description: string | null;
+  starts_on: string | null;
+  ends_on: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export const lifePhaseService = {
-  /**
-   * Create a new life phase
-   */
   async createLifePhase(
     userId: string,
-    data: { name: string; description?: string; startDate?: string }
+    data: { name: string; description?: string; startDate?: string },
   ): Promise<LifePhase> {
     try {
-      // Deactivate any currently active life phase
       await supabase
-        .from('life_phases')
+        .from("life_phases")
         .update({ is_active: false })
-        .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq("user_id", userId)
+        .eq("is_active", true);
 
-      // Create new life phase
       const { data: lifePhase, error } = await supabase
-        .from('life_phases')
+        .from("life_phases")
         .insert({
           user_id: userId,
           name: data.name,
           description: data.description || null,
-          start_date: data.startDate || new Date().toISOString(),
+          starts_on: data.startDate || null,
           is_active: true,
         })
-        .select()
+        .select("*")
         .single();
 
       if (error || !lifePhase) {
-        throw error || new Error('Failed to create life phase');
+        throw error || new Error("Failed to create life phase");
       }
 
-      return this.mapLifePhaseRow(lifePhase);
+      return this.mapLifePhaseRow(lifePhase as LifePhaseRow);
     } catch (error) {
-      console.error('Create life phase error:', error);
+      console.error("Create life phase error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get active life phase for user
-   */
   async getActiveLifePhase(userId: string): Promise<LifePhase | null> {
     try {
       const { data, error } = await supabase
-        .from('life_phases')
-        .select()
-        .eq('user_id', userId)
-        .eq('is_active', true)
+        .from("life_phases")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("is_active", true)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== "PGRST116") {
         throw error;
       }
 
-      return data ? this.mapLifePhaseRow(data) : null;
+      return data ? this.mapLifePhaseRow(data as LifePhaseRow) : null;
     } catch (error) {
-      console.error('Get active life phase error:', error);
+      console.error("Get active life phase error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get all life phases for user
-   */
   async getLifePhases(userId: string): Promise<LifePhase[]> {
     try {
       const { data, error } = await supabase
-        .from('life_phases')
-        .select()
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .from("life_phases")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      return (data || []).map(this.mapLifePhaseRow);
+      return (data || []).map((row) => this.mapLifePhaseRow(row as LifePhaseRow));
     } catch (error) {
-      console.error('Get life phases error:', error);
+      console.error("Get life phases error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Set life phase as active
-   */
   async setActiveLifePhase(lifePhaseId: string, userId: string): Promise<LifePhase> {
     try {
-      // Deactivate current active phase
       await supabase
-        .from('life_phases')
+        .from("life_phases")
         .update({ is_active: false })
-        .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq("user_id", userId)
+        .eq("is_active", true);
 
-      // Activate selected phase
       const { data, error } = await supabase
-        .from('life_phases')
+        .from("life_phases")
         .update({ is_active: true })
-        .eq('id', lifePhaseId)
-        .eq('user_id', userId)
-        .select()
+        .eq("id", lifePhaseId)
+        .eq("user_id", userId)
+        .select("*")
         .single();
 
       if (error || !data) {
-        throw error || new Error('Failed to set active life phase');
+        throw error || new Error("Failed to set active life phase");
       }
 
-      return this.mapLifePhaseRow(data);
+      return this.mapLifePhaseRow(data as LifePhaseRow);
     } catch (error) {
-      console.error('Set active life phase error:', error);
+      console.error("Set active life phase error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Delete life phase
-   */
   async deleteLifePhase(lifePhaseId: string, userId: string): Promise<void> {
     try {
       const { error } = await supabase
-        .from('life_phases')
+        .from("life_phases")
         .delete()
-        .eq('id', lifePhaseId)
-        .eq('user_id', userId);
+        .eq("id", lifePhaseId)
+        .eq("user_id", userId);
 
       if (error) throw error;
     } catch (error) {
-      console.error('Delete life phase error:', error);
+      console.error("Delete life phase error:", error);
       throw this.handleError(error);
     }
   },
 
-  // ==================== HELPERS ====================
-
-  private mapLifePhaseRow(row: any): LifePhase {
+  mapLifePhaseRow(row: LifePhaseRow): LifePhase {
     return {
       id: row.id,
       userId: row.user_id,
       name: row.name,
-      description: row.description,
-      startDate: row.start_date,
-      endDate: row.end_date,
+      description: row.description ?? undefined,
+      startsOn: row.starts_on ?? undefined,
+      endsOn: row.ends_on ?? undefined,
       isActive: row.is_active,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   },
 
-  private handleError(error: any): ApiError {
-    const errorMessage = (error?.message || 'Unknown error').toLowerCase();
-
+  handleError(error: any): ApiError {
     if (error?.status === 401) {
       return API_ERRORS.UNAUTHORIZED;
     }

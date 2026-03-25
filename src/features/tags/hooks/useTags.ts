@@ -40,6 +40,39 @@ export function useTags() {
     }
   }, [user]);
 
+  const searchTags = useCallback(
+    async (query: string) => {
+      if (!user) return [];
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const result = await tagsApi.searchTags(user.id, query);
+
+        if (!result.success || !result.data) {
+          setError(
+            result.error || {
+              code: "UNKNOWN_ERROR",
+              message: "Failed to search tags",
+            },
+          );
+          return [];
+        }
+
+        return result.data.tags;
+      } catch (err) {
+        const apiError = err as ApiError;
+        setError(apiError);
+        console.error("Search tags error:", apiError);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [user],
+  );
+
   return {
     tags,
     setTags,
@@ -47,5 +80,6 @@ export function useTags() {
     error,
     total,
     fetchTags,
+    searchTags,
   };
 }

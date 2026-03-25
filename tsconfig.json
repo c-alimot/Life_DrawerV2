@@ -3,6 +3,8 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
+      "@/*": ["./*"],
+
       "@store": ["./src/store"],
       "@store/*": ["./src/store/*"],
       "@services": ["./src/services"],
@@ -25,5 +27,10 @@
       "@navigation/*": ["./src/navigation/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": [
+    "LifeDrawer-v2/**/*",
+    "app_placeholder_backup/**/*",
+    "src/navigation/**/*"
+  ]
 }

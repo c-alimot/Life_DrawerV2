@@ -1,36 +1,44 @@
-import { useState, useCallback } from 'react';
-import { useAuthStore } from '@store';
+import { useState, useCallback } from "react";
+import { useAuthStore } from "@store";
+import { drawersApi } from "../api/drawers.api";
+import type { ApiError, UpdateDrawerRequest } from "@types";
 
 export function useEditDrawer(drawerId: string) {
   const [isLoading, setIsLoading] = useState(false);
-  const { session } = useAuthStore();
+  const [error, setError] = useState<ApiError | null>(null);
+  const { user } = useAuthStore();
 
   const updateDrawer = useCallback(
-    async (data: { name: string; color: string }) => {
-      if (!session?.user?.id) return false;
+    async (data: UpdateDrawerRequest) => {
+      if (!user || !drawerId) return false;
+
       setIsLoading(true);
+      setError(null);
+
       try {
-        const response = await fetch(
-          `/api/drawers/${drawerId}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session.access_token}`,
+        const result = await drawersApi.updateDrawer(drawerId, user.id, data);
+        if (!result.success) {
+          setError(
+            result.error || {
+              code: "UNKNOWN_ERROR",
+              message: "Failed to update drawer",
             },
-            body: JSON.stringify(data),
-          }
-        );
-        return response.ok;
+          );
+          return false;
+        }
+
+        return true;
       } catch (error) {
-        console.error('Error updating drawer:', error);
+        const apiError = error as ApiError;
+        setError(apiError);
+        console.error("Error updating drawer:", apiError);
         return false;
       } finally {
         setIsLoading(false);
       }
     },
-    [session, drawerId]
+    [user, drawerId],
   );
 
-  return { isLoading, updateDrawer };
+  return { isLoading, error, updateDrawer };
 }

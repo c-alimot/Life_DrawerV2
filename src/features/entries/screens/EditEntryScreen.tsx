@@ -6,14 +6,11 @@ import { useDrawers } from "@features/drawers/hooks/useDrawers";
 import { useCreateTag } from "@features/tags/hooks/useCreateTag";
 import { useTags } from "@features/tags/hooks/useTags";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-    useFocusEffect,
-    useNavigation,
-    useRoute,
-} from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
 import type { MoodValue } from "@types";
 import * as ImagePicker from "expo-image-picker";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -59,16 +56,17 @@ const MAX_IMAGES = 10;
 
 export function EditEntryScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute();
-  const { entryId } = route.params as { entryId: string };
+  const { entryId } = useLocalSearchParams<{ entryId: string }>();
+  const entryIdValue = Array.isArray(entryId) ? entryId[0] : entryId;
+  const resolvedEntryId = entryIdValue ?? "";
 
   const {
     entry,
     isLoading: entryLoading,
     fetchEntry,
-  } = useEntryDetail(entryId);
-  const { isLoading: updateLoading, updateEntry } = useEditEntry(entryId);
+  } = useEntryDetail(resolvedEntryId);
+  const { isLoading: updateLoading, updateEntry } =
+    useEditEntry(resolvedEntryId);
   const { drawers, fetchDrawers } = useDrawers();
   const { tags, fetchTags } = useTags();
   const { createDrawer } = useCreateDrawer();
@@ -90,6 +88,7 @@ export function EditEntryScreen() {
   });
 
   const [newImageUris, setNewImageUris] = useState<string[]>([]);
+  const [removedImageUris, setRemovedImageUris] = useState<string[]>([]);
   const [selectedDrawers, setSelectedDrawers] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showDrawerModal, setShowDrawerModal] = useState(false);
@@ -145,7 +144,7 @@ export function EditEntryScreen() {
       });
 
       if (!result.canceled) {
-        const uris = result.assets.map((asset) => asset.uri);
+        const uris = result.assets.map((asset: ImagePicker.ImagePickerAsset) => asset.uri);
         setNewImageUris((prev) => [...prev, ...uris]);
       }
     } catch {
@@ -183,42 +182,16 @@ export function EditEntryScreen() {
   }, []);
 
   const removeExistingImage = useCallback((imageUri: string) => {
-    Alert.alert("Remove Image", "This will permanently delete this image", [
+    Alert.alert("Remove Image", "This image will be removed when you save.", [
       { text: "Cancel", onPress: () => {} },
       {
-        text: "Delete",
+        text: "Remove",
         onPress: () => {
-          // Note: In a real app, you'd delete from storage
-          // For now, we'll just note that this would need additional API
-          Alert.alert(
-            "Note",
-            "Image deletion requires additional backend setup",
-          );
+          setRemovedImageUris((prev) => [...prev, imageUri]);
         },
         style: "destructive",
       },
     ]);
-  }, []);
-
-  // Link/Unlink drawer and tags
-  const linkDrawer = useCallback(async (drawerId: string) => {
-    // TODO: Implement drawer linking via API
-    return true;
-  }, []);
-
-  const unlinkDrawer = useCallback(async (drawerId: string) => {
-    // TODO: Implement drawer unlinking via API
-    return true;
-  }, []);
-
-  const linkTag = useCallback(async (tagId: string) => {
-    // TODO: Implement tag linking via API
-    return true;
-  }, []);
-
-  const unlinkTag = useCallback(async (tagId: string) => {
-    // TODO: Implement tag unlinking via API
-    return true;
   }, []);
 
   // Drawer management
@@ -236,22 +209,13 @@ export function EditEntryScreen() {
     }
   }, [newDrawerName, createDrawer, fetchDrawers]);
 
-  const toggleDrawer = useCallback(
-    async (drawerId: string) => {
-      if (selectedDrawers.includes(drawerId)) {
-        const success = await unlinkDrawer(drawerId);
-        if (success) {
-          setSelectedDrawers((prev) => prev.filter((id) => id !== drawerId));
-        }
-      } else {
-        const success = await linkDrawer(drawerId);
-        if (success) {
-          setSelectedDrawers((prev) => [...prev, drawerId]);
-        }
-      }
-    },
-    [selectedDrawers, linkDrawer, unlinkDrawer],
-  );
+  const toggleDrawer = useCallback((drawerId: string) => {
+    setSelectedDrawers((prev) =>
+      prev.includes(drawerId)
+        ? prev.filter((id) => id !== drawerId)
+        : [...prev, drawerId],
+    );
+  }, []);
 
   // Tag management
   const handleAddTag = useCallback(async () => {
@@ -268,44 +232,53 @@ export function EditEntryScreen() {
     }
   }, [newTagName, createTag, fetchTags]);
 
-  const toggleTag = useCallback(
-    async (tagId: string) => {
-      if (selectedTags.includes(tagId)) {
-        const success = await unlinkTag(tagId);
-        if (success) {
-          setSelectedTags((prev) => prev.filter((id) => id !== tagId));
-        }
-      } else {
-        const success = await linkTag(tagId);
-        if (success) {
-          setSelectedTags((prev) => [...prev, tagId]);
-        }
-      }
-    },
-    [selectedTags, linkTag, unlinkTag],
-  );
+  const toggleTag = useCallback((tagId: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((id) => id !== tagId)
+        : [...prev, tagId],
+    );
+  }, []);
 
   // Submit
   const onSubmit = async (data: EditEntryFormData) => {
+    if (!entry) {
+      return;
+    }
+
+    const persistedImages = entry.images.filter(
+      (imageUri) => !removedImageUris.includes(imageUri),
+    );
+
     const result = await updateEntry({
       title: data.title,
       content: data.content,
       mood: data.mood,
+      drawerIds: selectedDrawers,
+      tagIds: selectedTags,
+      imageUris: [...persistedImages, ...newImageUris],
+      audioUrl: entry.audioUrl || null,
+      location: entry.location || null,
+      lifePhaseId: entry.lifePhaseId || null,
+      occurredAt: entry.occurredAt || null,
     });
 
     if (result) {
       Alert.alert("Success", "Entry updated successfully");
-      navigation.goBack();
+      router.back();
     } else {
       Alert.alert("Error", "Failed to update entry");
     }
   };
 
   const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+    router.back();
+  }, []);
 
-  const totalImages = (entry?.images?.length || 0) + newImageUris.length;
+  const visibleExistingImages =
+    entry?.images.filter((imageUri) => !removedImageUris.includes(imageUri)) ||
+    [];
+  const totalImages = visibleExistingImages.length + newImageUris.length;
 
   if (entryLoading) {
     return (
@@ -511,7 +484,7 @@ export function EditEntryScreen() {
           </View>
 
           {/* Existing Images */}
-          {entry.images && entry.images.length > 0 && (
+          {visibleExistingImages.length > 0 && (
             <View style={{ marginBottom: theme.spacing.lg }}>
               <Text
                 style={[
@@ -525,7 +498,7 @@ export function EditEntryScreen() {
                 Existing Images
               </Text>
               <FlatList
-                data={entry.images}
+                data={visibleExistingImages}
                 keyExtractor={(_, index) => `existing-image-${index}`}
                 horizontal
                 scrollEnabled

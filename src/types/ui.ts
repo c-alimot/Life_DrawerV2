@@ -1,5 +1,4 @@
-import { ViewStyle, TextStyle } from 'react-native';
-import { Entry, Drawer, Tag, EntryWithRelations } from './entities';
+import { Drawer, Tag, EntryWithRelations } from './entities';
 
 /**
  * UI Component prop types

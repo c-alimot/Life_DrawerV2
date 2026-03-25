@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useEntries } from '@features/entries/hooks/useEntries';
-import type { Entry } from '@types';
 import type { MoodValue } from '@constants/moods';
 
 export interface SearchFilters {

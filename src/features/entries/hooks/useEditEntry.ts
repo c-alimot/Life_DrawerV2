@@ -1,28 +1,36 @@
 import { useAuthStore } from "@store";
 import { useCallback, useState } from "react";
+import { entriesApi } from "../api/entries.api";
+import type { ApiError, UpdateEntryRequest } from "@types";
 
 export function useEditEntry(entryId: string) {
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
   const { user } = useAuthStore();
 
   const updateEntry = useCallback(
-    async (data: any) => {
-      if (!user?.id) return false;
+    async (data: UpdateEntryRequest) => {
+      if (!user?.id || !entryId) return false;
+
       setIsLoading(true);
       setError(null);
+
       try {
-        const response = await fetch(`/api/entries/${entryId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(data),
-        });
-        return response.ok;
+        const result = await entriesApi.updateEntry(entryId, user.id, data);
+        if (!result.success) {
+          setError(
+            result.error || {
+              code: "UNKNOWN_ERROR",
+              message: "Failed to update entry",
+            },
+          );
+          return false;
+        }
+
+        return true;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        setError(message);
+        const apiError = err as ApiError;
+        setError(apiError);
         return false;
       } finally {
         setIsLoading(false);

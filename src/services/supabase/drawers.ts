@@ -1,25 +1,58 @@
-import { supabase } from './client';
+import { API_ERRORS } from "@constants/errors";
 import {
+  ApiError,
+  CreateDrawerRequest,
   Drawer,
   DrawerWithRelations,
-  CreateDrawerRequest,
+  Entry,
+  EntryWithRelations,
   UpdateDrawerRequest,
-  ApiError,
-} from '@types';
-import { API_ERRORS } from '@constants/errors';
+} from "@types";
+import { supabase } from "./client";
+import { entriesService } from "./entries";
+
+type DrawerRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type EntryRow = {
+  id: string;
+  user_id: string;
+  life_phase_id: string | null;
+  title: string;
+  content: string | null;
+  mood: string | null;
+  images: unknown;
+  audio_url: string | null;
+  location: unknown;
+  occurred_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export const drawersService = {
-  /**
-   * Create a new drawer
-   */
   async createDrawer(userId: string, request: CreateDrawerRequest): Promise<Drawer> {
     try {
-      // Check for duplicate name
       const { data: existing } = await supabase
-        .from('drawers')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('name', request.name)
+        .from("drawers")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("name", request.name)
         .maybeSingle();
 
       if (existing) {
@@ -27,114 +60,83 @@ export const drawersService = {
       }
 
       const { data, error } = await supabase
-        .from('drawers')
+        .from("drawers")
         .insert({
           user_id: userId,
           name: request.name,
           description: request.description || null,
-          color: request.color || '#7C9E7F',
+          color: request.color || "#7C9E7F",
           icon: request.icon || null,
         })
-        .select()
+        .select("*")
         .single();
 
       if (error || !data) {
-        throw error || new Error('Failed to create drawer');
+        throw error || new Error("Failed to create drawer");
       }
 
-      return this.mapDrawerRow(data);
+      return this.mapDrawerRow(data as DrawerRow);
     } catch (error) {
-      console.error('Create drawer error:', error);
+      console.error("Create drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get drawer by ID with entries count
-   */
   async getDrawerById(drawerId: string, userId: string): Promise<DrawerWithRelations> {
     try {
-      // Fetch drawer
       const { data: drawer, error: drawerError } = await supabase
-        .from('drawers')
-        .select()
-        .eq('id', drawerId)
-        .eq('user_id', userId)
+        .from("drawers")
+        .select("*")
+        .eq("id", drawerId)
+        .eq("user_id", userId)
         .single();
 
       if (drawerError || !drawer) {
-        throw drawerError || new Error('Drawer not found');
+        throw drawerError || new Error("Drawer not found");
       }
 
-      // Fetch entries through junction table
-      const { data: entryDrawersData, error: entryError } = await supabase
-        .from('entry_drawers')
-        .select('entry_id')
-        .eq('drawer_id', drawerId);
-
-      if (entryError) throw entryError;
-
-      const entryIds = entryDrawersData?.map((ed) => ed.entry_id) || [];
-
-      const entries = entryIds.length > 0
-        ? (
-            await supabase
-              .from('entries')
-              .select()
-              .in('id', entryIds)
-              .is('deleted_at', null)
-          ).data?.map(this.mapEntryRow) || []
-        : [];
-
-      // Fetch owner
-      const { data: owner, error: ownerError } = await supabase
-        .from('profiles')
-        .select()
-        .eq('id', drawer.user_id)
-        .single();
-
-      if (ownerError || !owner) {
-        throw ownerError || new Error('Owner not found');
-      }
+      const entriesResult = await this.getDrawerEntries(drawerId, userId);
+      const { data: owner } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
 
       return {
-        ...this.mapDrawerRow(drawer),
-        entries,
-        entryCount: entries.length,
-        owner: this.mapProfileRow(owner),
+        ...this.mapDrawerRow(drawer as DrawerRow),
+        entries: entriesResult.entries,
+        entryCount: entriesResult.total,
+        owner: owner ? this.mapProfileRow(owner as ProfileRow) : undefined,
       };
     } catch (error) {
-      console.error('Get drawer error:', error);
+      console.error("Get drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get all drawers for user
-   */
   async getDrawers(userId: string) {
     try {
       const { data: drawers, error, count } = await supabase
-        .from('drawers')
-        .select('*', { count: 'exact' })
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+        .from("drawers")
+        .select("*", { count: "exact" })
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Get entry count for each drawer
       const drawersWithCounts = await Promise.all(
         (drawers || []).map(async (drawer) => {
           const { count: entryCount } = await supabase
-            .from('entry_drawers')
-            .select('*', { count: 'exact' })
-            .eq('drawer_id', drawer.id);
+            .from("entry_drawers")
+            .select("*", { count: "exact", head: true })
+            .eq("drawer_id", drawer.id)
+            .eq("user_id", userId);
 
           return {
-            ...this.mapDrawerRow(drawer),
+            ...this.mapDrawerRow(drawer as DrawerRow),
             entryCount: entryCount || 0,
           };
-        })
+        }),
       );
 
       return {
@@ -142,28 +144,24 @@ export const drawersService = {
         total: count || 0,
       };
     } catch (error) {
-      console.error('Get drawers error:', error);
+      console.error("Get drawers error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Update drawer
-   */
   async updateDrawer(
     drawerId: string,
     userId: string,
-    request: UpdateDrawerRequest
+    request: UpdateDrawerRequest,
   ): Promise<Drawer> {
     try {
-      // Check for duplicate name if updating name
       if (request.name) {
         const { data: existing } = await supabase
-          .from('drawers')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('name', request.name)
-          .neq('id', drawerId)
+          .from("drawers")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("name", request.name)
+          .neq("id", drawerId)
           .maybeSingle();
 
         if (existing) {
@@ -172,7 +170,7 @@ export const drawersService = {
       }
 
       const { data, error } = await supabase
-        .from('drawers')
+        .from("drawers")
         .update({
           name: request.name,
           description: request.description,
@@ -180,138 +178,137 @@ export const drawersService = {
           icon: request.icon,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', drawerId)
-        .eq('user_id', userId)
-        .select()
+        .eq("id", drawerId)
+        .eq("user_id", userId)
+        .select("*")
         .single();
 
       if (error || !data) {
-        throw error || new Error('Failed to update drawer');
+        throw error || new Error("Failed to update drawer");
       }
 
-      return this.mapDrawerRow(data);
+      return this.mapDrawerRow(data as DrawerRow);
     } catch (error) {
-      console.error('Update drawer error:', error);
+      console.error("Update drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Delete drawer and remove all entry associations
-   */
-  async deleteDrawer(drawerId: string, userId: string): Promise<void> {
+  async deleteDrawer(drawerId: string, userId: string) {
     try {
-      // Remove all entry_drawer links
-      await supabase
-        .from('entry_drawers')
-        .delete()
-        .eq('drawer_id', drawerId);
+      await supabase.from("entry_drawers").delete().eq("drawer_id", drawerId).eq("user_id", userId);
 
       const { error } = await supabase
-        .from('drawers')
+        .from("drawers")
         .delete()
-        .eq('id', drawerId)
-        .eq('user_id', userId);
+        .eq("id", drawerId)
+        .eq("user_id", userId);
 
       if (error) throw error;
     } catch (error) {
-      console.error('Delete drawer error:', error);
+      console.error("Delete drawer error:", error);
       throw this.handleError(error);
     }
   },
 
-  /**
-   * Get drawer entries with optional filtering
-   */
-  async getDrawerEntries(drawerId: string, userId: string, limit: number = 20, offset: number = 0) {
+  async getDrawerEntries(drawerId: string, userId: string, limit = 20, offset = 0) {
     try {
-      // Get entry IDs for this drawer
       const { data: entryDrawersData, error: joinError } = await supabase
-        .from('entry_drawers')
-        .select('entry_id')
-        .eq('drawer_id', drawerId);
+        .from("entry_drawers")
+        .select("entry_id")
+        .eq("drawer_id", drawerId)
+        .eq("user_id", userId);
 
       if (joinError) throw joinError;
 
-      const entryIds = entryDrawersData?.map((ed) => ed.entry_id) || [];
+      const entryIds = entryDrawersData?.map((row) => row.entry_id) || [];
 
-      if (entryIds.length === 0) {
+      if (!entryIds.length) {
         return {
-          entries: [],
+          entries: [] as EntryWithRelations[],
           total: 0,
           hasMore: false,
         };
       }
 
-      // Get entries
       const { data: entries, error: entriesError, count } = await supabase
-        .from('entries')
-        .select('*', { count: 'exact' })
-        .in('id', entryIds)
-        .eq('user_id', userId)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
+        .from("entries")
+        .select("*", { count: "exact" })
+        .in("id", entryIds)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
         .range(offset, offset + limit - 1);
 
       if (entriesError) throw entriesError;
 
+      const enrichedEntries = await Promise.all(
+        (entries || []).map((row) =>
+          entriesService.getEntryById((row as EntryRow).id, userId),
+        ),
+      );
+
       return {
-        entries: (entries || []).map(this.mapEntryRow),
+        entries: enrichedEntries,
         total: count || 0,
         hasMore: (count || 0) > offset + limit,
       };
     } catch (error) {
-      console.error('Get drawer entries error:', error);
+      console.error("Get drawer entries error:", error);
       throw this.handleError(error);
     }
   },
 
-  // ==================== HELPERS ====================
-
-  private mapDrawerRow(row: any): Drawer {
+  mapDrawerRow(row: DrawerRow): Drawer {
     return {
       id: row.id,
       userId: row.user_id,
       name: row.name,
-      description: row.description,
-      color: row.color,
-      icon: row.icon,
+      description: row.description ?? undefined,
+      color: row.color ?? "#7C9E7F",
+      icon: row.icon ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
   },
 
-  private mapEntryRow(row: any) {
+  mapEntryRow(row: EntryRow): Entry {
     return {
       id: row.id,
       userId: row.user_id,
       title: row.title,
-      content: row.content,
-      mood: row.mood,
+      content: row.content || "",
+      mood: row.mood as Entry["mood"],
+      images: Array.isArray(row.images) ? row.images.filter((item): item is string => typeof item === "string") : [],
+      audioUrl: row.audio_url ?? undefined,
+      location: typeof row.location === "object" && row.location
+        ? (row.location as Entry["location"])
+        : undefined,
+      lifePhaseId: row.life_phase_id ?? undefined,
+      occurredAt: row.occurred_at ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
-      deletedAt: row.deleted_at,
     };
   },
 
-  private mapProfileRow(row: any) {
+  mapProfileRow(row: ProfileRow) {
     return {
       id: row.id,
-      email: row.email,
-      displayName: row.display_name,
+      email: "",
+      displayName: row.display_name ?? undefined,
+      avatarUrl: row.avatar_url ?? undefined,
       createdAt: row.created_at,
-      updatedAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   },
 
-  private handleError(error: any): ApiError {
-    const errorMessage = (error?.message || 'Unknown error').toLowerCase();
+  handleError(error: any): ApiError {
+    const errorMessage = (error?.message || "Unknown error").toLowerCase();
 
-    if (errorMessage.includes('not found')) {
+    if (errorMessage.includes("not found")) {
       return API_ERRORS.DRAWER_NOT_FOUND;
     }
 
-    if (errorMessage.includes('already exists') || errorMessage.includes('duplicate')) {
+    if (errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
       return API_ERRORS.DRAWER_NAME_EXISTS;
     }
 

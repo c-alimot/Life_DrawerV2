@@ -1,19 +1,28 @@
 import { SafeArea, Screen } from "@components/layout";
-import { MOOD_MAP, type MoodValue } from "@constants/moods";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { MOOD_MAP } from "@constants/moods";
+import { useEntries } from "@features/entries/hooks/useEntries";
+import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
+import type { MoodValue } from "@types";
+import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useEntries } from "../hooks/useEntries";
+
+const PAGE_BACKGROUND = "#EDEAE4";
+const PAGE_SURFACE = "#FFFFFF";
+const PAGE_TEXT = "#2F2924";
+const PAGE_MUTED = "#6F6860";
+const PAGE_SECONDARY = "#556950";
+const PAGE_BORDER = "#B39C87";
 
 type FilterType = "all" | "mood" | "drawer" | "tag" | "date";
 
@@ -26,7 +35,6 @@ interface SearchFilters {
 
 export function SearchScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const { entries, isLoading, fetchEntries } = useEntries();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -37,7 +45,6 @@ export function SearchScreen() {
     tag: null,
     dateRange: "all",
   });
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,12 +106,9 @@ export function SearchScreen() {
     return results;
   }, [entries, searchTerm, filters]);
 
-  const handleEntryPress = useCallback(
-    (entryId: string) => {
-      navigation.navigate("EntryDetail", { entryId } as any);
-    },
-    [navigation],
-  );
+  const handleEntryPress = useCallback((entryId: string) => {
+    router.push(`/entry/${entryId}`);
+  }, []);
 
   const handleMoodFilterChange = useCallback((mood: MoodValue | null) => {
     setFilters((prev) => ({ ...prev, mood }));
@@ -165,9 +169,9 @@ export function SearchScreen() {
   if (isLoading) {
     return (
       <SafeArea>
-        <Screen style={styles.container}>
+        <Screen style={[styles.container, { backgroundColor: PAGE_BACKGROUND }]}>
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ActivityIndicator size="large" color={PAGE_SECONDARY} />
           </View>
         </Screen>
       </SafeArea>
@@ -176,10 +180,15 @@ export function SearchScreen() {
 
   return (
     <SafeArea>
-      <Screen style={styles.container}>
+      <Screen style={[styles.container, { backgroundColor: PAGE_BACKGROUND }]}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              styles.pageTitle,
+              { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
+            ]}
+          >
             Search Entries
           </Text>
           {hasActiveFilters && (
@@ -191,7 +200,7 @@ export function SearchScreen() {
               <Text
                 style={[
                   theme.typography.bodySm,
-                  { color: theme.colors.primary },
+                  { color: PAGE_SECONDARY, fontWeight: "700" },
                 ]}
               >
                 Clear All
@@ -205,16 +214,17 @@ export function SearchScreen() {
           style={[
             styles.searchBar,
             {
-              borderColor: theme.colors.border,
-              backgroundColor: theme.colors.surface,
+              borderColor: PAGE_BORDER,
+              backgroundColor: PAGE_SURFACE,
+              shadowColor: PAGE_TEXT,
             },
           ]}
         >
           <Text style={{ fontSize: 18, marginRight: 8 }}>🔍</Text>
           <TextInput
-            style={[styles.searchInput, { color: theme.colors.text }]}
+            style={[styles.searchInput, { color: PAGE_TEXT }]}
             placeholder="Search by title or content..."
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={PAGE_MUTED}
             value={searchTerm}
             onChangeText={setSearchTerm}
             accessibilityLabel="Search entries"
@@ -233,10 +243,11 @@ export function SearchScreen() {
               styles.filterTab,
               {
                 backgroundColor:
-                  activeFilter === "all"
-                    ? theme.colors.primary
-                    : theme.colors.surface,
-                borderColor: theme.colors.border,
+                    activeFilter === "all"
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                borderColor: PAGE_BORDER,
+                shadowColor: PAGE_TEXT,
               },
             ]}
             accessible
@@ -248,8 +259,8 @@ export function SearchScreen() {
                 {
                   color:
                     activeFilter === "all"
-                      ? theme.colors.background
-                      : theme.colors.text,
+                      ? PAGE_BACKGROUND
+                      : PAGE_TEXT,
                 },
               ]}
             >
@@ -263,10 +274,11 @@ export function SearchScreen() {
               styles.filterTab,
               {
                 backgroundColor:
-                  activeFilter === "mood"
-                    ? theme.colors.primary
-                    : theme.colors.surface,
-                borderColor: theme.colors.border,
+                    activeFilter === "mood"
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                borderColor: PAGE_BORDER,
+                shadowColor: PAGE_TEXT,
               },
             ]}
             accessible
@@ -278,8 +290,8 @@ export function SearchScreen() {
                 {
                   color:
                     activeFilter === "mood"
-                      ? theme.colors.background
-                      : theme.colors.text,
+                      ? PAGE_BACKGROUND
+                      : PAGE_TEXT,
                 },
               ]}
             >
@@ -293,10 +305,11 @@ export function SearchScreen() {
               styles.filterTab,
               {
                 backgroundColor:
-                  activeFilter === "drawer"
-                    ? theme.colors.primary
-                    : theme.colors.surface,
-                borderColor: theme.colors.border,
+                    activeFilter === "drawer"
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                borderColor: PAGE_BORDER,
+                shadowColor: PAGE_TEXT,
               },
             ]}
             accessible
@@ -308,8 +321,8 @@ export function SearchScreen() {
                 {
                   color:
                     activeFilter === "drawer"
-                      ? theme.colors.background
-                      : theme.colors.text,
+                      ? PAGE_BACKGROUND
+                      : PAGE_TEXT,
                 },
               ]}
             >
@@ -323,10 +336,11 @@ export function SearchScreen() {
               styles.filterTab,
               {
                 backgroundColor:
-                  activeFilter === "tag"
-                    ? theme.colors.primary
-                    : theme.colors.surface,
-                borderColor: theme.colors.border,
+                    activeFilter === "tag"
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                borderColor: PAGE_BORDER,
+                shadowColor: PAGE_TEXT,
               },
             ]}
             accessible
@@ -338,8 +352,8 @@ export function SearchScreen() {
                 {
                   color:
                     activeFilter === "tag"
-                      ? theme.colors.background
-                      : theme.colors.text,
+                      ? PAGE_BACKGROUND
+                      : PAGE_TEXT,
                 },
               ]}
             >
@@ -353,10 +367,11 @@ export function SearchScreen() {
               styles.filterTab,
               {
                 backgroundColor:
-                  activeFilter === "date"
-                    ? theme.colors.primary
-                    : theme.colors.surface,
-                borderColor: theme.colors.border,
+                    activeFilter === "date"
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                borderColor: PAGE_BORDER,
+                shadowColor: PAGE_TEXT,
               },
             ]}
             accessible
@@ -368,8 +383,8 @@ export function SearchScreen() {
                 {
                   color:
                     activeFilter === "date"
-                      ? theme.colors.background
-                      : theme.colors.text,
+                      ? PAGE_BACKGROUND
+                      : PAGE_TEXT,
                 },
               ]}
             >
@@ -746,7 +761,8 @@ export function SearchScreen() {
                   styles.entryCard,
                   {
                     backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
+                    borderColor: PAGE_BORDER,
+                    shadowColor: PAGE_TEXT,
                   },
                 ]}
                 onPress={() => handleEntryPress(item.id)}
@@ -757,8 +773,8 @@ export function SearchScreen() {
                   <Text
                     numberOfLines={1}
                     style={[
-                      theme.typography.h4,
-                      { color: theme.colors.text, flex: 1 },
+                      styles.entryTitle,
+                      { color: PAGE_TEXT, flex: 1, fontFamily: theme.fonts.serif },
                     ]}
                   >
                     {item.title}
@@ -775,7 +791,7 @@ export function SearchScreen() {
                   style={[
                     theme.typography.bodySm,
                     {
-                      color: theme.colors.textSecondary,
+                      color: PAGE_MUTED,
                       marginVertical: theme.spacing.sm,
                     },
                   ]}
@@ -787,7 +803,7 @@ export function SearchScreen() {
                   style={[
                     theme.typography.labelXs,
                     {
-                      color: theme.colors.textSecondary,
+                      color: PAGE_MUTED,
                       marginBottom: theme.spacing.sm,
                     },
                   ]}
@@ -847,15 +863,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  pageTitle: {
+    fontSize: 40,
+    lineHeight: 46,
+  },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 22,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   searchInput: {
     flex: 1,
@@ -869,8 +893,12 @@ const styles = StyleSheet.create({
   filterTab: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 999,
     borderWidth: 1,
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   filterContent: {
     paddingHorizontal: 20,
@@ -880,8 +908,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 18,
     marginBottom: 8,
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   moodFilterOption: {
     flex: 0,
@@ -889,14 +921,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 12,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 18,
     alignItems: "center",
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   tagFilterOption: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderRadius: 16,
+    borderRadius: 999,
   },
   resultsHeader: {
     paddingHorizontal: 20,
@@ -909,9 +945,13 @@ const styles = StyleSheet.create({
   },
   entryCard: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 22,
     marginBottom: 12,
     borderWidth: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   entryHeader: {
     flexDirection: "row",
@@ -934,5 +974,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
+  },
+  entryTitle: {
+    fontSize: 28,
+    lineHeight: 32,
   },
 });

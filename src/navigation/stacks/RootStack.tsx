@@ -15,7 +15,7 @@ export function RootNavigator() {
 
   useEffect(() => {
     initializeAuth();
-  }, []);
+  }, [initializeAuth]);
 
   if (authLoading) {
     return null; // Or show splash screen

@@ -1,51 +1,55 @@
+import { AppBottomNav, AppSideMenu, SafeArea, Screen } from "@components/layout";
+import { MOOD_MAP, MOOD_VALUES, type MoodData, type MoodValue } from "@constants/moods";
+import { useEntries } from "@features/entries/hooks/useEntries";
+import { useFocusEffect } from "@react-navigation/native";
+import { useTheme } from "@styles/theme";
+import { useCallback, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-} from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { useCallback, useMemo, useState } from 'react';
-import { useTheme } from '@styles/theme';
-import { useEntries } from '@features/entries/hooks/useEntries';
-import { MOOD_MAP, MOOD_VALUES, type MoodValue } from '@constants/moods';
-import { Screen, SafeArea } from '@components/layout';
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
-type TimeRange = 'week' | 'month' | 'all';
+type TimeRange = "week" | "month" | "all";
+
+const PAGE_BACKGROUND = "#EDEAE4";
+const PAGE_SURFACE = "#FFFFFF";
+const PAGE_TEXT = "#2F2924";
+const PAGE_PRIMARY = "#8C9A7F";
+const PAGE_SECONDARY = "#556950";
+const PAGE_BORDER = "#B39C87";
 
 export function InsightsScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
   const { entries, isLoading, fetchEntries } = useEntries();
 
-  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       fetchEntries();
-    }, [fetchEntries])
+    }, [fetchEntries]),
   );
 
   // Calculate date range
-  const getDateRange = useCallback(
-    (range: TimeRange) => {
-      const now = new Date();
-      let startDate = new Date();
+  const getDateRange = useCallback((range: TimeRange) => {
+    const now = new Date();
+    let startDate = new Date();
 
-      if (range === 'week') {
-        startDate.setDate(now.getDate() - 7);
-      } else if (range === 'month') {
-        startDate.setMonth(now.getMonth() - 1);
-      } else {
-        startDate = new Date(0); // All time
-      }
+    if (range === "week") {
+      startDate.setDate(now.getDate() - 7);
+    } else if (range === "month") {
+      startDate.setMonth(now.getMonth() - 1);
+    } else {
+      startDate = new Date(0); // All time
+    }
 
-      return startDate;
-    },
-    []
-  );
+    return startDate;
+  }, []);
 
   // Filter entries by time range
   const filteredEntries = useMemo(() => {
@@ -56,7 +60,10 @@ export function InsightsScreen() {
 
   // Mood distribution
   const moodDistribution = useMemo(() => {
-    const distribution: Record<MoodValue, number> = {} as Record<MoodValue, number>;
+    const distribution: Record<MoodValue, number> = {} as Record<
+      MoodValue,
+      number
+    >;
 
     MOOD_VALUES.forEach((mood) => {
       distribution[mood] = 0;
@@ -85,7 +92,7 @@ export function InsightsScreen() {
 
     filteredEntries.forEach((entry) => {
       const date = new Date(entry.createdAt);
-      const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][
+      const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
         date.getDay()
       ];
       frequency[day as keyof typeof frequency]++;
@@ -96,8 +103,10 @@ export function InsightsScreen() {
 
   // Tag frequency
   const tagFrequency = useMemo(() => {
-    const tagMap: Record<string, { name: string; count: number; color: string }> =
-      {};
+    const tagMap: Record<
+      string,
+      { name: string; count: number; color: string }
+    > = {};
 
     filteredEntries.forEach((entry) => {
       entry.tags?.forEach((tag) => {
@@ -143,15 +152,15 @@ export function InsightsScreen() {
     const totalEntries = filteredEntries.length;
     const entriesWithAudio = filteredEntries.filter((e) => e.audioUrl).length;
     const entriesWithImages = filteredEntries.filter(
-      (e) => e.images && e.images.length > 0
+      (e) => e.images && e.images.length > 0,
     ).length;
     const totalImages = filteredEntries.reduce(
       (sum, e) => sum + (e.images?.length || 0),
-      0
+      0,
     );
     const avgWordsPerEntry = Math.round(
-      filteredEntries.reduce((sum, e) => sum + e.content.split(' ').length, 0) /
-        (totalEntries || 1)
+      filteredEntries.reduce((sum, e) => sum + e.content.split(" ").length, 0) /
+        (totalEntries || 1),
     );
 
     return {
@@ -181,9 +190,7 @@ export function InsightsScreen() {
   // Writing streak
   const writingStreak = useMemo(() => {
     const dates = new Set(
-      filteredEntries.map((e) =>
-        new Date(e.createdAt).toLocaleDateString()
-      )
+      filteredEntries.map((e) => new Date(e.createdAt).toLocaleDateString()),
     );
 
     let streak = 0;
@@ -198,12 +205,16 @@ export function InsightsScreen() {
     return streak;
   }, [filteredEntries]);
 
+  const mostCommonMoodData: MoodData | null = mostCommonMood
+    ? MOOD_MAP[mostCommonMood as MoodValue]
+    : null;
+
   if (isLoading) {
     return (
       <SafeArea>
-        <Screen style={styles.container}>
+        <Screen style={[styles.container, { backgroundColor: PAGE_BACKGROUND }]}>
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ActivityIndicator size="large" color={PAGE_PRIMARY} />
           </View>
         </Screen>
       </SafeArea>
@@ -217,17 +228,34 @@ export function InsightsScreen() {
 
   return (
     <SafeArea>
-      <Screen style={styles.container}>
+      <Screen style={[styles.container, { backgroundColor: PAGE_BACKGROUND }]}>
+        <AppSideMenu
+          visible={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          currentRoute="/insights"
+        />
+
         {/* Header */}
         <View style={styles.header}>
-          <Text style={[theme.typography.h2, { color: theme.colors.text }]}>
+          <TouchableOpacity onPress={() => setIsMenuOpen(true)}>
+            <Text style={[styles.menuButton, { color: PAGE_TEXT }]}>
+              ☰
+            </Text>
+          </TouchableOpacity>
+          <Text
+            style={[
+              styles.pageTitle,
+              { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
+            ]}
+          >
             Insights
           </Text>
+          <View style={{ width: 32 }} />
         </View>
 
         {/* Time Range Selector */}
         <View style={styles.timeRangeSelector}>
-          {(['week', 'month', 'all'] as const).map((range) => (
+          {(["week", "month", "all"] as const).map((range) => (
             <TouchableOpacity
               key={range}
               onPress={() => setTimeRange(range)}
@@ -235,8 +263,11 @@ export function InsightsScreen() {
                 styles.timeRangeButton,
                 {
                   backgroundColor:
-                    timeRange === range ? theme.colors.primary : theme.colors.surface,
-                  borderColor: theme.colors.border,
+                    timeRange === range
+                      ? PAGE_SECONDARY
+                      : PAGE_SURFACE,
+                  borderColor: PAGE_BORDER,
+                  shadowColor: PAGE_TEXT,
                 },
               ]}
               accessible
@@ -249,12 +280,12 @@ export function InsightsScreen() {
                   {
                     color:
                       timeRange === range
-                        ? theme.colors.background
-                        : theme.colors.text,
+                        ? PAGE_BACKGROUND
+                        : PAGE_TEXT,
                   },
                 ]}
               >
-                Last {range === 'all' ? 'All Time' : range}
+                Last {range === "all" ? "All Time" : range}
               </Text>
             </TouchableOpacity>
           ))}
@@ -269,7 +300,10 @@ export function InsightsScreen() {
             <View
               style={[
                 styles.statCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
               ]}
             >
               <Text
@@ -280,7 +314,12 @@ export function InsightsScreen() {
               >
                 {stats.totalEntries}
               </Text>
-              <Text style={[theme.typography.labelSm, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  theme.typography.labelSm,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Entries
               </Text>
             </View>
@@ -288,7 +327,10 @@ export function InsightsScreen() {
             <View
               style={[
                 styles.statCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
               ]}
             >
               <Text
@@ -299,7 +341,12 @@ export function InsightsScreen() {
               >
                 {stats.avgWordsPerEntry}
               </Text>
-              <Text style={[theme.typography.labelSm, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  theme.typography.labelSm,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Avg Words
               </Text>
             </View>
@@ -307,7 +354,10 @@ export function InsightsScreen() {
             <View
               style={[
                 styles.statCard,
-                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
               ]}
             >
               <Text
@@ -318,7 +368,12 @@ export function InsightsScreen() {
               >
                 {writingStreak}
               </Text>
-              <Text style={[theme.typography.labelSm, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  theme.typography.labelSm,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 Day Streak
               </Text>
             </View>
@@ -338,26 +393,42 @@ export function InsightsScreen() {
               📊 Mood Distribution
             </Text>
 
-            {mostCommonMood && (
+            {mostCommonMood && mostCommonMoodData && (
               <View
                 style={[
                   styles.highlightCard,
                   {
-                    backgroundColor: theme.colors.primary + '10',
+                    backgroundColor: theme.colors.primary + "10",
                     borderColor: theme.colors.primary,
                   },
                 ]}
               >
-                <Text style={[theme.typography.labelSm, { color: theme.colors.primary }]}>
+                <Text
+                  style={[
+                    theme.typography.labelSm,
+                    { color: theme.colors.primary },
+                  ]}
+                >
                   Most Common Mood
                 </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 8,
+                  }}
+                >
                   <Text style={{ fontSize: 32, marginRight: 12 }}>
-                    {MOOD_MAP[mostCommonMood].emoji}
+                    {mostCommonMoodData.emoji}
                   </Text>
                   <View>
-                    <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
-                      {MOOD_MAP[mostCommonMood].label}
+                    <Text
+                      style={[
+                        theme.typography.h3,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {mostCommonMoodData.label}
                     </Text>
                     <Text
                       style={[
@@ -374,8 +445,8 @@ export function InsightsScreen() {
 
             <View
               style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
+                flexDirection: "row",
+                flexWrap: "wrap",
                 gap: 8,
                 marginTop: theme.spacing.md,
               }}
@@ -388,9 +459,9 @@ export function InsightsScreen() {
                   <View
                     key={mood}
                     style={{
-                      alignItems: 'center',
+                      alignItems: "center",
                       flex: 0,
-                      width: '18%',
+                      width: "18%",
                     }}
                   >
                     <View
@@ -399,8 +470,8 @@ export function InsightsScreen() {
                         height: 80,
                         backgroundColor: theme.colors.surface,
                         borderRadius: 8,
-                        justifyContent: 'flex-end',
-                        alignItems: 'center',
+                        justifyContent: "flex-end",
+                        alignItems: "center",
                         borderWidth: 1,
                         borderColor: theme.colors.border,
                       }}
@@ -408,7 +479,7 @@ export function InsightsScreen() {
                       <View
                         style={[
                           {
-                            width: '100%',
+                            width: "100%",
                             height: barHeight,
                             backgroundColor: theme.colors.primary,
                             borderRadius: 6,
@@ -449,8 +520,8 @@ export function InsightsScreen() {
 
             <View
               style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
+                flexDirection: "row",
+                justifyContent: "space-between",
                 gap: 4,
               }}
             >
@@ -461,25 +532,25 @@ export function InsightsScreen() {
                   <View
                     key={day}
                     style={{
-                      alignItems: 'center',
+                      alignItems: "center",
                       flex: 1,
                     }}
                   >
                     <View
                       style={{
-                        width: '100%',
+                        width: "100%",
                         height: 100,
                         backgroundColor: theme.colors.surface,
                         borderRadius: 8,
-                        justifyContent: 'flex-end',
-                        alignItems: 'center',
+                        justifyContent: "flex-end",
+                        alignItems: "center",
                         borderWidth: 1,
                         borderColor: theme.colors.border,
                       }}
                     >
                       <View
                         style={{
-                          width: '100%',
+                          width: "100%",
                           height: barHeight,
                           backgroundColor: theme.colors.primary,
                           borderRadius: 6,
@@ -529,11 +600,19 @@ export function InsightsScreen() {
               <View
                 style={[
                   styles.statRow,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
                 ]}
               >
                 <View>
-                  <Text style={[theme.typography.body, { color: theme.colors.text }]}>
+                  <Text
+                    style={[
+                      theme.typography.body,
+                      { color: theme.colors.text },
+                    ]}
+                  >
                     🖼️ Entries with Images
                   </Text>
                   <Text
@@ -546,10 +625,7 @@ export function InsightsScreen() {
                   </Text>
                 </View>
                 <Text
-                  style={[
-                    theme.typography.h3,
-                    { color: theme.colors.primary },
-                  ]}
+                  style={[theme.typography.h3, { color: theme.colors.primary }]}
                 >
                   {stats.entriesWithImages}
                 </Text>
@@ -558,11 +634,19 @@ export function InsightsScreen() {
               <View
                 style={[
                   styles.statRow,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
                 ]}
               >
                 <View>
-                  <Text style={[theme.typography.body, { color: theme.colors.text }]}>
+                  <Text
+                    style={[
+                      theme.typography.body,
+                      { color: theme.colors.text },
+                    ]}
+                  >
                     🎙️ Entries with Audio
                   </Text>
                   <Text
@@ -575,10 +659,7 @@ export function InsightsScreen() {
                   </Text>
                 </View>
                 <Text
-                  style={[
-                    theme.typography.h3,
-                    { color: theme.colors.primary },
-                  ]}
+                  style={[theme.typography.h3, { color: theme.colors.primary }]}
                 >
                   {stats.entriesWithAudio}
                 </Text>
@@ -613,8 +694,8 @@ export function InsightsScreen() {
                   >
                     <View
                       style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
+                        flexDirection: "row",
+                        justifyContent: "space-between",
                         marginBottom: 6,
                       }}
                     >
@@ -637,17 +718,17 @@ export function InsightsScreen() {
                     </View>
                     <View
                       style={{
-                        width: '100%',
+                        width: "100%",
                         height: 8,
                         backgroundColor: theme.colors.surface,
                         borderRadius: 4,
-                        overflow: 'hidden',
+                        overflow: "hidden",
                       }}
                     >
                       <View
                         style={{
                           width: `${barWidth}%`,
-                          height: '100%',
+                          height: "100%",
                           backgroundColor: tag.color,
                         }}
                       />
@@ -685,8 +766,8 @@ export function InsightsScreen() {
                   >
                     <View
                       style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
+                        flexDirection: "row",
+                        justifyContent: "space-between",
                         marginBottom: 6,
                       }}
                     >
@@ -709,17 +790,17 @@ export function InsightsScreen() {
                     </View>
                     <View
                       style={{
-                        width: '100%',
+                        width: "100%",
                         height: 8,
                         backgroundColor: theme.colors.surface,
                         borderRadius: 4,
-                        overflow: 'hidden',
+                        overflow: "hidden",
                       }}
                     >
                       <View
                         style={{
                           width: `${barWidth}%`,
-                          height: '100%',
+                          height: "100%",
                           backgroundColor: drawer.color,
                         }}
                       />
@@ -747,7 +828,7 @@ export function InsightsScreen() {
                   {
                     color: theme.colors.textSecondary,
                     marginTop: theme.spacing.md,
-                    textAlign: 'center',
+                    textAlign: "center",
                   },
                 ]}
               >
@@ -756,6 +837,8 @@ export function InsightsScreen() {
             </View>
           )}
         </ScrollView>
+
+        <AppBottomNav currentRoute="/insights" />
       </Screen>
     </SafeArea>
   );
@@ -765,12 +848,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loaderContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  menuButton: {
+    fontSize: 32,
+    lineHeight: 34,
+    fontWeight: "500",
+  },
+  pageTitle: {
+    fontSize: 40,
+    lineHeight: 46,
+  },
   timeRangeSelector: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 8,
@@ -780,45 +880,61 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderRadius: 8,
-    alignItems: 'center',
+    borderRadius: 999,
+    alignItems: "center",
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
   content: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    paddingBottom: 40,
+    paddingBottom: 230,
   },
   section: {
     marginBottom: 28,
   },
   statsGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 28,
   },
   statCard: {
     flex: 1,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 22,
     borderWidth: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   highlightCard: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 22,
     borderWidth: 1,
     marginBottom: 16,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 22,
     borderWidth: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 4,
   },
   emptyContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingVertical: 60,
   },
 });

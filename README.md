@@ -1,50 +1,58 @@
-# Welcome to your Expo app 👋
+# Life Drawer
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Life Drawer is an Expo + React Native journaling app built around reflective organization instead of a simple timeline. Entries can be grouped into drawers, associated with a current life phase, tagged, and enriched with photos, audio, mood, and location.
 
-## Get started
+## Current architecture
+
+- App shell: Expo Router
+- Auth + data: Supabase
+- State: Zustand + local screen state
+- Forms: React Hook Form + Zod
+- Media: Expo AV, Expo Image Picker, Expo Location
+
+Legacy React Navigation files still exist under `src/navigation/`, but the active app path is the Expo Router `app/` tree.
+
+## Setup
 
 1. Install dependencies
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Create `.env.local`
 
-## Learn more
+```bash
+EXPO_PUBLIC_SUPABASE_URL=your-project-url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Start the app
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npx expo start
+```
 
-## Join the community
+## Supabase notes
 
-Join our community of developers creating universal apps.
+The app expects:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- app tables for `profiles`, `life_phases`, `drawers`, `entries`, `tags`, `entry_drawers`, and `entry_tags`
+- an `entry-media` storage bucket for uploaded images and audio
+
+A recovery migration has been added under [supabase/migrations/20260320120000_recovery_schema.sql](/Users/char/Documents/Life_DrawerV2/supabase/migrations/20260320120000_recovery_schema.sql) to align the schema with the current app contract.
+
+## Current product behavior
+
+- Auth/session restore is gated in `app/_layout.tsx`
+- Onboarding completion is persisted locally
+- Signup, login, logout, and reset-password initiation are wired
+- Entries support text, mood, drawers, tags, life phase association, images, audio, and location
+- Voice-to-text is intentionally disabled in the UI until a production-ready implementation is chosen
+
+## Verification
+
+```bash
+npx tsc --noEmit
+npm run lint
+```

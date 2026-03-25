@@ -1,38 +1,37 @@
+import { SafeArea, Screen } from "@components/layout";
+import { useTheme } from "@styles/theme";
+import { router } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-} from 'react-native';
-import { useEffect, useRef, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
-import { useTheme } from '@styles/theme';
-import { Screen, SafeArea } from '@components/layout';
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 const QUOTES = [
-  'Every moment is a fresh beginning.',
-  'Write your story, one entry at a time.',
-  'Your thoughts matter. Capture them here.',
-  'Reflection is the gateway to growth.',
-  'In writing, we find ourselves.',
-  'Today\'s thoughts, tomorrow\'s wisdom.',
-  'Document your journey, cherish your memories.',
-  'The best time to write was yesterday. The second best is now.',
+  "Every moment is a fresh beginning.",
+  "Write your story, one entry at a time.",
+  "Your thoughts matter. Capture them here.",
+  "Reflection is the gateway to growth.",
+  "In writing, we find ourselves.",
+  "Today's thoughts, tomorrow's wisdom.",
+  "Document your journey, cherish your memories.",
+  "The best time to write was yesterday. The second best is now.",
 ];
 
 export function SplashScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
 
   const scaleAnim = useRef(new Animated.Value(0.3)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
-  const [quote, setQuote] = useState('');
+  const [quote, setQuote] = useState("");
 
   useEffect(() => {
     // Select random quote
@@ -69,18 +68,17 @@ export function SplashScreen() {
   useEffect(() => {
     // Navigate to Home after splash screen duration
     const timer = setTimeout(() => {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' as any }],
-      });
+      router.replace("/");
     }, 3000); // 3 second splash screen
 
     return () => clearTimeout(timer);
-  }, [navigation]);
+  }, []);
 
   return (
     <SafeArea>
-      <Screen style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Screen
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         {/* Animated Logo */}
         <Animated.View
           style={[
@@ -97,7 +95,12 @@ export function SplashScreen() {
         </Animated.View>
 
         {/* App Title */}
-        <Text style={[theme.typography.h1, { color: theme.colors.text, marginTop: 24 }]}>
+        <Text
+          style={[
+            theme.typography.h1,
+            { color: theme.colors.text, marginTop: 24 },
+          ]}
+        >
           Life Drawer
         </Text>
 
@@ -129,12 +132,12 @@ export function SplashScreen() {
               theme.typography.body,
               {
                 color: theme.colors.textSecondary,
-                textAlign: 'center',
-                fontStyle: 'italic',
+                textAlign: "center",
+                fontStyle: "italic",
               },
             ]}
           >
-            "{quote}"
+            &quot;{quote}&quot;
           </Text>
         </Animated.View>
 
@@ -159,7 +162,7 @@ export function SplashScreen() {
           style={[
             styles.decoration,
             {
-              backgroundColor: theme.colors.primary + '05',
+              backgroundColor: theme.colors.primary + "05",
             },
           ]}
         />
@@ -171,15 +174,15 @@ export function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   logoContainer: {
-    marginTop: '15%',
+    marginTop: "15%",
   },
   logoBox: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   logo: {
     fontSize: 80,
@@ -189,11 +192,11 @@ const styles = StyleSheet.create({
     marginVertical: 24,
   },
   loaderContainer: {
-    alignItems: 'center',
-    marginBottom: '15%',
+    alignItems: "center",
+    marginBottom: "15%",
   },
   decoration: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,

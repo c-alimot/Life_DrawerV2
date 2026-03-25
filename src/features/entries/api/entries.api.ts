@@ -115,9 +115,9 @@ export const entriesApi = {
     }
   },
 
-  async linkToDrawer(entryId: string, drawerId: string) {
+  async linkToDrawer(entryId: string, drawerId: string, userId: string) {
     try {
-      await entriesService.linkEntryToDrawer(entryId, drawerId);
+      await entriesService.linkEntryToDrawer(entryId, drawerId, userId);
       return {
         success: true,
         data: null,
@@ -133,9 +133,9 @@ export const entriesApi = {
     }
   },
 
-  async unlinkFromDrawer(entryId: string, drawerId: string) {
+  async unlinkFromDrawer(entryId: string, drawerId: string, userId?: string) {
     try {
-      await entriesService.unlinkEntryFromDrawer(entryId, drawerId);
+      await entriesService.unlinkEntryFromDrawer(entryId, drawerId, userId);
       return {
         success: true,
         data: null,
@@ -151,9 +151,9 @@ export const entriesApi = {
     }
   },
 
-  async linkToTag(entryId: string, tagId: string) {
+  async linkToTag(entryId: string, tagId: string, userId: string) {
     try {
-      await entriesService.linkEntryToTag(entryId, tagId);
+      await entriesService.linkEntryToTag(entryId, tagId, userId);
       return {
         success: true,
         data: null,
@@ -169,9 +169,9 @@ export const entriesApi = {
     }
   },
 
-  async unlinkFromTag(entryId: string, tagId: string) {
+  async unlinkFromTag(entryId: string, tagId: string, userId?: string) {
     try {
-      await entriesService.unlinkEntryFromTag(entryId, tagId);
+      await entriesService.unlinkEntryFromTag(entryId, tagId, userId);
       return {
         success: true,
         data: null,

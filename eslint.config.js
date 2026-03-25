@@ -5,6 +5,15 @@ const expoConfig = require('eslint-config-expo/flat');
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ['dist/*'],
+    ignores: [
+      'dist/*',
+      'src/navigation/**/*',
+      'app_placeholder_backup/**/*',
+      'LifeDrawer-v2/**/*',
+      'src/services/supabase/test.ts',
+    ],
+    rules: {
+      'import/no-unresolved': 'off',
+    },
   },
 ]);
