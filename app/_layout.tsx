@@ -24,6 +24,52 @@ export default function RootLayout() {
     typeof window !== "undefined" &&
     window.location.hostname === "localhost";
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") {
+      return;
+    }
+
+    const { documentElement, body } = document;
+    const expoRoot =
+      document.getElementById("root") ||
+      document.getElementById("__next") ||
+      document.querySelector("#root > div");
+
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousHtmlHeight = documentElement.style.height;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyHeight = body.style.height;
+    const previousBodyMinHeight = body.style.minHeight;
+    const previousRootHeight =
+      expoRoot instanceof HTMLElement ? expoRoot.style.height : "";
+    const previousRootMinHeight =
+      expoRoot instanceof HTMLElement ? expoRoot.style.minHeight : "";
+
+    documentElement.style.height = "100%";
+    documentElement.style.overflow = "auto";
+    body.style.height = "auto";
+    body.style.minHeight = "100%";
+    body.style.overflow = "auto";
+
+    if (expoRoot instanceof HTMLElement) {
+      expoRoot.style.height = "auto";
+      expoRoot.style.minHeight = "100%";
+    }
+
+    return () => {
+      documentElement.style.overflow = previousHtmlOverflow;
+      documentElement.style.height = previousHtmlHeight;
+      body.style.overflow = previousBodyOverflow;
+      body.style.height = previousBodyHeight;
+      body.style.minHeight = previousBodyMinHeight;
+
+      if (expoRoot instanceof HTMLElement) {
+        expoRoot.style.height = previousRootHeight;
+        expoRoot.style.minHeight = previousRootMinHeight;
+      }
+    };
+  }, []);
+
   const mapSessionUserToProfile = (
     sessionUser: {
       id: string;
