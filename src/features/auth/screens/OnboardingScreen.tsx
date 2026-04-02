@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -43,6 +44,16 @@ const ONBOARDING_SLIDES = [
 export function OnboardingScreen() {
   const theme = useTheme();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const { width, height } = useWindowDimensions();
+
+  const heroBaseSize = Math.min(width * 0.54, height * 0.28, 300);
+  const heroLargeSize = Math.max(heroBaseSize, 220);
+  const heroMediumSize = heroLargeSize * 0.83;
+  const heroSmallSize = heroLargeSize * 0.65;
+  const imageOrbSize = heroLargeSize * 0.71;
+  const imageSize = imageOrbSize * 0.65;
+  const heroTopOffset = Math.max(32, heroLargeSize * 0.1);
+  const titleMaxWidth = Math.min(width - 56, 360);
 
   const completeOnboarding = async () => {
     await setOnboardingCompleted();
@@ -125,30 +136,60 @@ export function OnboardingScreen() {
           <View
             style={[
               styles.heroCircleLarge,
+              {
+                top: heroTopOffset,
+                width: heroLargeSize,
+                height: heroLargeSize,
+                borderRadius: heroLargeSize / 2,
+              },
               { backgroundColor: theme.colors.accent1 + "26" },
             ]}
           />
           <View
             style={[
               styles.heroCircleMedium,
+              {
+                top: heroTopOffset + heroLargeSize * 0.13,
+                width: heroMediumSize,
+                height: heroMediumSize,
+                borderRadius: heroMediumSize / 2,
+              },
               { backgroundColor: theme.colors.accent1 + "18" },
             ]}
           />
           <View
             style={[
               styles.heroCircleSmall,
+              {
+                top: heroTopOffset + heroLargeSize * 0.24,
+                width: heroSmallSize,
+                height: heroSmallSize,
+                borderRadius: heroSmallSize / 2,
+              },
               { backgroundColor: theme.colors.accent2 + "14" },
             ]}
           />
           <View
             style={[
               styles.heroHalo,
+              {
+                top: heroTopOffset + heroLargeSize * 0.05,
+                width: heroLargeSize * 0.73,
+                height: heroLargeSize * 0.73,
+                borderRadius: (heroLargeSize * 0.73) / 2,
+              },
               { backgroundColor: theme.colors.accent1 + "20" },
             ]}
           />
           <View
             style={[
               styles.imageOrb,
+              {
+                width: imageOrbSize,
+                height: imageOrbSize,
+                borderRadius: imageOrbSize / 2,
+                marginBottom: Math.max(36, heroLargeSize * 0.18),
+              },
               {
                 backgroundColor: ONBOARDING_BACKGROUND,
                 shadowColor: theme.colors.text,
@@ -157,7 +198,7 @@ export function OnboardingScreen() {
           >
             <Image
               source={slide.image}
-              style={styles.image}
+              style={[styles.image, { width: imageSize, height: imageSize }]}
               resizeMode="contain"
               accessible
               accessibilityLabel={`Onboarding slide ${currentSlide + 1} illustration`}
@@ -170,6 +211,7 @@ export function OnboardingScreen() {
               {
                 color: ONBOARDING_TEXT,
                 fontFamily: theme.fonts.serif,
+                maxWidth: titleMaxWidth,
               },
             ]}
           >
@@ -180,7 +222,7 @@ export function OnboardingScreen() {
             style={[
               theme.typography.body,
               styles.description,
-              { color: ONBOARDING_TEXT },
+              { color: ONBOARDING_TEXT, maxWidth: titleMaxWidth },
             ]}
           >
             {slide.description}
@@ -316,43 +358,25 @@ const styles = StyleSheet.create({
   },
   heroCircleLarge: {
     position: "absolute",
-    top: 72,
-    width: 300,
-    height: 300,
-    borderRadius: 999,
     opacity: 0.9,
   },
   heroCircleMedium: {
     position: "absolute",
-    top: 110,
-    width: 248,
-    height: 248,
-    borderRadius: 999,
     opacity: 0.9,
   },
   heroCircleSmall: {
     position: "absolute",
-    top: 146,
-    width: 196,
-    height: 196,
-    borderRadius: 999,
     opacity: 0.95,
   },
   imageOrb: {
-    width: 212,
-    height: 212,
-    borderRadius: 106,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 56,
     shadowOpacity: 0.08,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 12 },
     elevation: 8,
   },
   image: {
-    width: 138,
-    height: 138,
   },
   title: {
     fontSize: 30,
@@ -360,12 +384,10 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     marginBottom: 20,
-    maxWidth: 320,
   },
   description: {
     textAlign: "center",
     lineHeight: 30,
-    maxWidth: 320,
     marginBottom: 36,
   },
   pagination: {
