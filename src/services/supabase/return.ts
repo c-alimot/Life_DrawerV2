@@ -60,7 +60,7 @@ export const returnService = {
       throw new Error("Entry not found");
     }
 
-    const entriesById = new Map<string, EntryWithRelations>([[selectedEntry.id, selectedEntry]]);
+    let rootEntry = selectedEntry;
     const visitedAncestorIds = new Set<string>([selectedEntry.id]);
     let parentEntryId = selectedEntry.parentEntryId;
 
@@ -71,12 +71,13 @@ export const returnService = {
         break;
       }
 
-      entriesById.set(parentEntry.id, parentEntry);
+      rootEntry = parentEntry;
       parentEntryId = parentEntry.parentEntryId;
     }
 
-    const pendingEntryIds = [selectedEntry.id];
-    const visitedDescendantIds = new Set<string>([selectedEntry.id]);
+    const entriesById = new Map<string, EntryWithRelations>([[rootEntry.id, rootEntry]]);
+    const pendingEntryIds = [rootEntry.id];
+    const visitedDescendantIds = new Set<string>([rootEntry.id]);
 
     while (pendingEntryIds.length) {
       const currentEntryId = pendingEntryIds.shift();

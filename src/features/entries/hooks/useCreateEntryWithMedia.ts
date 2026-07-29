@@ -1,7 +1,17 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
 import { entriesApi } from '../api/entries.api';
-import type { ApiError, MoodValue } from '@types';
+import { returnApi } from '@features/return/return.api';
+import type {
+  ApiError,
+  CreateEntryRequest,
+  ReflectionType,
+} from '@types';
+
+interface LinkedReflectionOptions {
+  parentEntryId: string;
+  reflectionType: ReflectionType;
+}
 
 export function useCreateEntryWithMedia() {
   const { user } = useAuthStore();
@@ -10,16 +20,7 @@ export function useCreateEntryWithMedia() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const createEntry = useCallback(
-    async (data: {
-      title: string;
-      content: string;
-      mood?: MoodValue;
-      drawerIds?: string[];
-      tagIds?: string[];
-      imageUris?: string[];
-      audioUri?: string;
-      location?: { latitude: number; longitude: number; address?: string };
-    }) => {
+    async (data: CreateEntryRequest, linkedReflection?: LinkedReflectionOptions) => {
       if (!user) return null;
 
       setIsLoading(true);
@@ -27,16 +28,13 @@ export function useCreateEntryWithMedia() {
       setUploadProgress(0);
 
       try {
-        const result = await entriesApi.createEntry(user.id, {
-          title: data.title,
-          content: data.content,
-          mood: data.mood,
-          drawerIds: data.drawerIds,
-          tagIds: data.tagIds,
-          imageUris: data.imageUris,
-          audioUri: data.audioUri,
-          location: data.location,
-        });
+        const result = linkedReflection
+          ? await returnApi.createLinkedReflection(user.id, {
+              parentEntryId: linkedReflection.parentEntryId,
+              reflectionType: linkedReflection.reflectionType,
+              entryData: data,
+            })
+          : await entriesApi.createEntry(user.id, data);
 
         if (!result.success || !result.data) {
           setError(

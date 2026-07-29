@@ -1,13 +1,14 @@
 import { AppPageHeader, SafeArea, Screen } from "@components/layout";
 import { AppModalSheet, Button } from "@components/ui";
+import { ConnectedReflectionsSection } from "@features/return/ConnectedReflectionsSection";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
 import { MOOD_MAP } from "@constants/moods";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
-import type { MoodValue } from "@types";
+import type { EntryWithRelations, MoodValue } from "@types";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -26,18 +27,27 @@ type TabType = "content" | "media" | "details";
 
 export function EntryDetailScreen() {
   const theme = useTheme();
-  const { entryId } = useLocalSearchParams<{ entryId: string }>();
+  const { entryId, skipReturnView } = useLocalSearchParams<{
+    entryId: string;
+    skipReturnView?: string;
+  }>();
   const entryIdValue = Array.isArray(entryId) ? entryId[0] : entryId;
+  const skipReturnViewValue = Array.isArray(skipReturnView) ? skipReturnView[0] : skipReturnView;
   const resolvedEntryId = entryIdValue ?? "";
   const {
     entry,
     reflectionChain,
+    isReflectionChainLoading,
+    reflectionChainError,
+    isDeleting,
     isLoading,
     fetchEntry,
+    fetchReflectionChain,
     recordEntryView,
     setSavedForLater,
     setEntryResurfacing,
     deleteEntry,
+    getDirectChildReflections,
     unlinkDrawer,
     unlinkTag,
   } = useEntryDetail(resolvedEntryId);
@@ -47,24 +57,50 @@ export function EntryDetailScreen() {
 
   const [activeTab, setActiveTab] = useState<TabType>("content");
   const [isReturnActionsOpen, setIsReturnActionsOpen] = useState(false);
+  const hasSkippedInitialReturnViewRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
       void (async () => {
         const entryLoaded = await fetchEntry();
+        if (entryLoaded && skipReturnViewValue === "1" && !hasSkippedInitialReturnViewRef.current) {
+          hasSkippedInitialReturnViewRef.current = true;
+          return;
+        }
+
         if (entryLoaded) {
           await recordEntryView();
         }
       })();
-    }, [fetchEntry, recordEntryView]),
+    }, [fetchEntry, recordEntryView, skipReturnViewValue]),
   );
 
   const handleEdit = useCallback(() => {
     router.push(`/edit-entry/${resolvedEntryId}`);
   }, [resolvedEntryId]);
 
-  const handleDelete = useCallback(() => {
-    Alert.alert("Delete Entry", "Are you sure you want to delete this entry?", [
+  const handleDelete = useCallback(async () => {
+    if (!entry) return;
+
+    let hasConnectedReflections = Boolean(entry.parentEntryId) || reflectionChain.some(
+      (connectedEntry) => connectedEntry.id !== resolvedEntryId,
+    );
+
+    if (!hasConnectedReflections) {
+      const directChildren = await getDirectChildReflections();
+      if (directChildren === null) {
+        Alert.alert("Unable to check connected reflections", "Please try again before deleting this Entry.");
+        return;
+      }
+
+      hasConnectedReflections = directChildren.length > 0;
+    }
+
+    const deletionMessage = hasConnectedReflections
+      ? "This Entry has connected reflections. Deleting it will not delete them, but may remove part of their history."
+      : "Are you sure you want to delete this entry?";
+
+    Alert.alert("Delete Entry", deletionMessage, [
       { text: "Cancel", onPress: () => {} },
       {
         text: "Delete",
@@ -80,7 +116,20 @@ export function EntryDetailScreen() {
         style: "destructive",
       },
     ]);
-  }, [deleteEntry]);
+  }, [deleteEntry, entry, getDirectChildReflections, reflectionChain, resolvedEntryId]);
+
+  const handleReflectOnThis = useCallback(() => {
+    if (!entry) return;
+
+    setIsReturnActionsOpen(false);
+    router.push(
+      `/create-entry?parentEntryId=${encodeURIComponent(entry.id)}&parentEntryDate=${encodeURIComponent(entry.createdAt)}&reflectionType=update&isConnectedReflection=1`,
+    );
+  }, [entry]);
+
+  const handleOpenConnectedEntry = useCallback((connectedEntryId: string) => {
+    router.push(`/entry/${connectedEntryId}`);
+  }, []);
 
   const handleSavedForLater = useCallback(async () => {
     if (!entry) return;
@@ -176,6 +225,20 @@ export function EntryDetailScreen() {
   });
 
   const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
+  const parentEntry: EntryWithRelations | undefined = entry.parentEntryId
+    ? reflectionChain.find((connectedEntry) => connectedEntry.id === entry.parentEntryId)
+    : undefined;
+  const reflectionTypeLabel = entry.reflectionType
+    ? `${entry.reflectionType.charAt(0).toUpperCase()}${entry.reflectionType.slice(1)}`
+    : "Reflection";
+  const parentEntryDateLabel = parentEntry
+    ? new Date(parentEntry.createdAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+  const parentEntryPreview = parentEntry?.content.trim().replace(/\s+/g, " ").slice(0, 130);
 
   return (
     <SafeArea>
@@ -204,16 +267,21 @@ export function EntryDetailScreen() {
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleDelete}
+                onPress={() => void handleDelete()}
+                disabled={isDeleting}
                 accessible
                 accessibilityLabel="Delete entry"
                 style={styles.deleteButton}
               >
-                <MaterialCommunityIcons
-                  name="trash-can-outline"
-                  size={22}
-                  color={theme.colors.error}
-                />
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color={theme.colors.error} />
+                ) : (
+                  <MaterialCommunityIcons
+                    name="trash-can-outline"
+                    size={22}
+                    color={theme.colors.error}
+                  />
+                )}
               </TouchableOpacity>
             </View>
           }
@@ -322,6 +390,40 @@ export function EntryDetailScreen() {
           {/* Content Tab */}
           {activeTab === "content" && (
             <View>
+              {entry.parentEntryId && (
+                <View style={[styles.reflectionOriginCard, { borderColor: theme.colors.border }]}>
+                  <Text style={[theme.typography.labelSm, styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                    Reflection from an earlier Entry
+                  </Text>
+                  <Text style={[theme.typography.body, { color: theme.colors.text, fontWeight: "700" }]}>
+                    {reflectionTypeLabel}
+                  </Text>
+                  {parentEntry && parentEntryDateLabel ? (
+                    <>
+                      <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>
+                        Original Entry: {parentEntryDateLabel}
+                      </Text>
+                      {parentEntryPreview ? (
+                        <Text style={[theme.typography.bodySm, styles.parentEntryPreview, { color: theme.colors.textSecondary }]}>
+                          “{parentEntryPreview}{parentEntry.content.length > parentEntryPreview.length ? "..." : ""}”
+                        </Text>
+                      ) : null}
+                      <TouchableOpacity
+                        onPress={() => router.push(`/entry/${parentEntry.id}`)}
+                        accessible
+                        accessibilityLabel="View original Entry"
+                      >
+                        <Text style={[theme.typography.bodySm, { color: theme.colors.primary, fontWeight: "700" }]}>View original Entry</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>
+                      Earlier Entry unavailable.
+                    </Text>
+                  )}
+                </View>
+              )}
+
               <Text
                 style={[
                   theme.typography.h2,
@@ -371,33 +473,14 @@ export function EntryDetailScreen() {
                 {entry.content}
               </Text>
 
-              {(entry.parentEntryId || reflectionChain.length > 1) && (
-                <View style={[styles.reflectionSection, { borderColor: theme.colors.border }]}>
-                  <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
-                    Part of a continuing reflection
-                  </Text>
-                  <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>
-                    {entry.parentEntryId
-                      ? "This entry is connected to an earlier reflection."
-                      : "This entry has connected reflections."}
-                  </Text>
-                  {reflectionChain
-                    .filter((connectedEntry) => connectedEntry.id !== entry.id)
-                    .map((connectedEntry) => (
-                      <TouchableOpacity
-                        key={connectedEntry.id}
-                        onPress={() => router.push(`/entry/${connectedEntry.id}`)}
-                        accessible
-                        accessibilityLabel={`Open connected reflection ${connectedEntry.title}`}
-                        style={styles.reflectionLink}
-                      >
-                        <Text style={[theme.typography.bodySm, { color: theme.colors.primary }]}>
-                          {connectedEntry.title || "View connected reflection"}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                </View>
-              )}
+              <ConnectedReflectionsSection
+                entries={reflectionChain}
+                currentEntryId={entry.id}
+                isLoading={isReflectionChainLoading}
+                error={reflectionChainError}
+                onRetry={() => void fetchReflectionChain()}
+                onOpenEntry={handleOpenConnectedEntry}
+              />
             </View>
           )}
 
@@ -693,6 +776,16 @@ export function EntryDetailScreen() {
             Choose how you would like to return to this entry.
           </Text>
           <Button
+            label="Reflect on this"
+            onPress={handleReflectOnThis}
+            variant="primary"
+            style={styles.returnActionButton}
+            accessibilityLabel="Reflect on this Entry"
+          />
+          <Text style={[theme.typography.bodySm, styles.returnActionsSubtitle, { color: theme.colors.textSecondary }]}>
+            Write about what has changed, stayed the same, or feels different now.
+          </Text>
+          <Button
             label={entry.savedForLater ? "Remove from saved" : "Save for later"}
             onPress={handleSavedForLater}
             variant="primary"
@@ -808,14 +901,16 @@ const styles = StyleSheet.create({
   sectionBlock: {
     width: "100%",
   },
-  reflectionSection: {
-    marginTop: 24,
-    paddingTop: 18,
-    borderTopWidth: 1,
-    gap: 8,
+  reflectionOriginCard: {
+    marginBottom: 20,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
   },
-  reflectionLink: {
-    paddingVertical: 4,
+  parentEntryPreview: {
+    fontStyle: "italic",
+    lineHeight: 20,
   },
   returnActionsSheet: {
     gap: 12,

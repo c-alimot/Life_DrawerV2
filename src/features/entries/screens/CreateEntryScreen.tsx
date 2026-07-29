@@ -23,6 +23,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
+import { entriesApi } from "../api/entries.api";
+import { useAuthStore } from "@store";
+import type { EntryWithRelations, ReflectionType } from "@types";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -87,6 +90,25 @@ const STARTER_DRAWER = {
   name: "My Life Drawer",
   icon: "archive-outline",
 };
+
+const REFLECTION_TYPE_OPTIONS: {
+  value: ReflectionType;
+  label: string;
+  description: string;
+}[] = [
+  { value: "update", label: "Update", description: "Share what happened or changed afterward." },
+  { value: "response", label: "Response", description: "Respond to what you previously thought or felt." },
+  { value: "continuation", label: "Continuation", description: "Continue the same thought or story." },
+];
+
+const REFLECTION_PROMPTS = [
+  "What has changed since then?",
+  "Does this still feel true?",
+  "What do you notice now?",
+  "What happened after this?",
+  "What would you tell your past self?",
+  "Is there anything you understand differently now?",
+] as const;
 
 const webStorage = {
   async getItem(key: string) {
@@ -166,6 +188,7 @@ async function reverseGeocodeWithNominatim(
 export function CreateEntryScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const { user } = useAuthStore();
   const { createEntry, isLoading, error } = useCreateEntryWithMedia();
   const { drawers, fetchDrawers } = useDrawers();
   const { tags, fetchTags } = useTags();
@@ -175,8 +198,28 @@ export function CreateEntryScreen() {
   const { createTag } = useCreateTag();
   const { updateTag } = useUpdateTag();
   const { deleteTag } = useDeleteTag();
-  const { drawerId } = useLocalSearchParams<{ drawerId?: string }>();
+  const {
+    drawerId,
+    parentEntryId,
+    parentEntryDate,
+    reflectionType,
+    isConnectedReflection: isConnectedReflectionParam,
+  } = useLocalSearchParams<{
+    drawerId?: string;
+    parentEntryId?: string;
+    parentEntryDate?: string;
+    reflectionType?: ReflectionType;
+    isConnectedReflection?: string;
+  }>();
   const initialDrawerId = Array.isArray(drawerId) ? drawerId[0] : drawerId;
+  const resolvedParentEntryId = Array.isArray(parentEntryId) ? parentEntryId[0] : parentEntryId;
+  const resolvedParentEntryDate = Array.isArray(parentEntryDate) ? parentEntryDate[0] : parentEntryDate;
+  const resolvedReflectionType = Array.isArray(reflectionType) ? reflectionType[0] : reflectionType;
+  const isConnectedReflection =
+    (Array.isArray(isConnectedReflectionParam)
+      ? isConnectedReflectionParam[0]
+      : isConnectedReflectionParam) === "1" &&
+    Boolean(resolvedParentEntryId);
 
   const {
     control,
@@ -215,6 +258,16 @@ export function CreateEntryScreen() {
   const [newTagName, setNewTagName] = useState("");
   const [locationText, setLocationText] = useState("");
   const [pendingImageRemoveIndex, setPendingImageRemoveIndex] = useState<number | null>(null);
+  const [parentEntry, setParentEntry] = useState<EntryWithRelations | null>(null);
+  const [isParentLoading, setIsParentLoading] = useState(isConnectedReflection);
+  const [parentLoadFailed, setParentLoadFailed] = useState(false);
+  const [selectedReflectionType, setSelectedReflectionType] = useState<ReflectionType>(
+    resolvedReflectionType === "response" || resolvedReflectionType === "continuation"
+      ? resolvedReflectionType
+      : "update",
+  );
+  const [promptIndex, setPromptIndex] = useState(0);
+  const [isPromptVisible, setIsPromptVisible] = useState(true);
   const soundRef = useRef<Audio.Sound | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const bypassExitPromptRef = useRef(false);
@@ -225,6 +278,31 @@ export function CreateEntryScreen() {
   const neutralActionTextStyle = { color: ENTRY_CANCEL_TEXT, fontWeight: "700" } as const;
   const primaryActionTextStyle = { color: "#FFFFFF", fontWeight: "700" } as const;
   const discardActionTextStyle = { color: ENTRY_TEXT, fontWeight: "700" } as const;
+
+  const loadParentEntry = useCallback(async () => {
+    if (!isConnectedReflection || !resolvedParentEntryId || !user) {
+      setIsParentLoading(false);
+      return;
+    }
+
+    setIsParentLoading(true);
+    setParentLoadFailed(false);
+
+    const result = await entriesApi.getEntry(resolvedParentEntryId, user.id);
+    if (!result.success || !result.data) {
+      setParentEntry(null);
+      setParentLoadFailed(true);
+      setIsParentLoading(false);
+      return;
+    }
+
+    setParentEntry(result.data);
+    setIsParentLoading(false);
+  }, [isConnectedReflection, resolvedParentEntryId, user]);
+
+  useEffect(() => {
+    void loadParentEntry();
+  }, [loadParentEntry]);
 
   useEffect(() => {
     const loadStarterDrawerPreference = async () => {
@@ -593,6 +671,15 @@ export function CreateEntryScreen() {
   );
 
   const onSubmit = async (data: EntryFormData) => {
+    if (isLoading) {
+      return;
+    }
+
+    if (isConnectedReflection && (!resolvedParentEntryId || !parentEntry)) {
+      Alert.alert("Earlier Entry unavailable", "Please retry loading the original Entry before saving.");
+      return;
+    }
+
     const entry = await createEntry({
       title: data.title,
       content: data.content,
@@ -602,12 +689,26 @@ export function CreateEntryScreen() {
       imageUris: selectedMedia.imageUris,
       audioUri: selectedMedia.audioUri || undefined,
       location: selectedMedia.location || undefined,
-    });
+    }, isConnectedReflection && resolvedParentEntryId
+      ? {
+          parentEntryId: resolvedParentEntryId,
+          reflectionType: selectedReflectionType,
+        }
+      : undefined);
 
     if (entry) {
-      Alert.alert("Success", "Entry created successfully");
       bypassExitPromptRef.current = true;
-      router.back();
+      if (isConnectedReflection) {
+        Alert.alert("Reflection saved.", undefined, [
+          {
+            text: "View reflection",
+            onPress: () => router.replace(`/entry/${entry.id}?skipReturnView=1`),
+          },
+        ]);
+      } else {
+        Alert.alert("Success", "Entry created successfully");
+        router.back();
+      }
     } else {
       Alert.alert("Error", error?.message || "Failed to save entry");
     }
@@ -748,6 +849,16 @@ export function CreateEntryScreen() {
       <Text style={styles.toolbarItemLabel}>{label}</Text>
     </View>
   );
+  const parentEntryDateLabel = useMemo(() => {
+    const value = parentEntry?.createdAt || resolvedParentEntryDate;
+    if (!value) return "an earlier Entry";
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "an earlier Entry"
+      : date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  }, [parentEntry?.createdAt, resolvedParentEntryDate]);
+  const parentEntryPreview = parentEntry?.content.trim().replace(/\s+/g, " ").slice(0, 150);
   const resolveDrawerIcon = useCallback((icon: string | undefined | null) => {
     if (!icon) return "archive-outline";
     return /^[a-z0-9-]+$/i.test(icon) ? icon : "archive-outline";
@@ -860,7 +971,10 @@ export function CreateEntryScreen() {
           <Button
             label={isLoading ? "Saving..." : "Save"}
             onPress={handleSubmit(onSubmit)}
-            disabled={isLoading}
+            disabled={
+              isLoading ||
+              (isConnectedReflection && (isParentLoading || parentLoadFailed))
+            }
             size="sm"
             textStyle={{ color: "#FFFFFF", letterSpacing: 1.5 }}
             style={styles.saveButton}
@@ -872,6 +986,106 @@ export function CreateEntryScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.content}
         >
+          {isConnectedReflection && (
+            <View style={styles.reflectionContextCard}>
+              <Text style={[theme.typography.h3, styles.reflectionContextTitle]}>
+                Reflecting on an Entry from {parentEntryDateLabel}
+              </Text>
+              {isParentLoading ? (
+                <Text style={[theme.typography.bodySm, styles.reflectionContextCopy]}>
+                  Loading earlier Entry...
+                </Text>
+              ) : parentLoadFailed ? (
+                <View style={styles.reflectionContextUnavailable}>
+                  <Text style={[theme.typography.bodySm, styles.reflectionContextCopy]}>
+                    Earlier Entry unavailable.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => void loadParentEntry()}
+                    accessible
+                    accessibilityLabel="Retry loading earlier Entry"
+                  >
+                    <Text style={[theme.typography.bodySm, styles.reflectionContextLink]}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  {parentEntryPreview ? (
+                    <Text style={[theme.typography.bodySm, styles.reflectionContextPreview]}>
+                      “{parentEntryPreview}{(parentEntry?.content.length || 0) > parentEntryPreview.length ? "..." : ""}”
+                    </Text>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={() => router.push(`/entry/${resolvedParentEntryId}`)}
+                    accessible
+                    accessibilityLabel="View original Entry"
+                  >
+                    <Text style={[theme.typography.bodySm, styles.reflectionContextLink]}>View original Entry</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+              <Text style={[theme.typography.bodySm, styles.reflectionContextCopy]}>
+                Your original Entry will remain unchanged.
+              </Text>
+
+              <Text style={[theme.typography.labelSm, styles.reflectionTypeLabel]}>Reflection type</Text>
+              <View style={styles.reflectionTypeList}>
+                {REFLECTION_TYPE_OPTIONS.map((option) => {
+                  const selected = selectedReflectionType === option.value;
+                  return (
+                    <TouchableOpacity
+                      key={option.value}
+                      onPress={() => setSelectedReflectionType(option.value)}
+                      style={[styles.reflectionTypeOption, selected && styles.reflectionTypeOptionSelected]}
+                      accessible
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      accessibilityLabel={`${option.label}. ${option.description}`}
+                    >
+                      <View style={styles.reflectionTypeOptionHeader}>
+                        <Text style={[theme.typography.body, styles.reflectionTypeOptionTitle]}>{option.label}</Text>
+                        {selected ? <MaterialCommunityIcons name="check-circle" size={18} color={ENTRY_SECONDARY} /> : null}
+                      </View>
+                      <Text style={[theme.typography.bodySm, styles.reflectionTypeOptionDescription]}>{option.description}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {isPromptVisible ? (
+                <View style={styles.reflectionPrompt}>
+                  <Text style={[theme.typography.bodySm, styles.reflectionPromptText]}>
+                    {REFLECTION_PROMPTS[promptIndex]}
+                  </Text>
+                  <View style={styles.reflectionPromptActions}>
+                    <TouchableOpacity
+                      onPress={() => setPromptIndex((index) => (index + 1) % REFLECTION_PROMPTS.length)}
+                      accessible
+                      accessibilityLabel="Show another reflection prompt"
+                    >
+                      <Text style={[theme.typography.bodySm, styles.reflectionContextLink]}>Another prompt</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setIsPromptVisible(false)}
+                      accessible
+                      accessibilityLabel="Dismiss reflection prompt"
+                    >
+                      <Text style={[theme.typography.bodySm, styles.reflectionContextLink]}>Dismiss</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => setIsPromptVisible(true)}
+                  accessible
+                  accessibilityLabel="Show a reflection prompt"
+                >
+                  <Text style={[theme.typography.bodySm, styles.reflectionContextLink]}>Show a reflection prompt</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <Controller
             control={control}
             name="title"
@@ -899,6 +1113,7 @@ export function CreateEntryScreen() {
                 spellCheck={false}
                 focusable
                 accessibilityLabel="Entry title"
+                autoFocus={isConnectedReflection}
               />
             )}
           />
@@ -1261,6 +1476,79 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 48,
     paddingTop: 4,
+  },
+  reflectionContextCard: {
+    marginBottom: 22,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: ENTRY_SURFACE,
+    borderWidth: 1,
+    borderColor: ENTRY_ACCENT,
+    gap: 10,
+  },
+  reflectionContextTitle: {
+    color: ENTRY_TEXT,
+  },
+  reflectionContextCopy: {
+    color: ENTRY_MUTED,
+  },
+  reflectionContextPreview: {
+    color: ENTRY_TEXT,
+    fontStyle: "italic",
+    lineHeight: 20,
+  },
+  reflectionContextLink: {
+    color: ENTRY_SECONDARY,
+    fontWeight: "700",
+  },
+  reflectionContextUnavailable: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reflectionTypeLabel: {
+    color: ENTRY_MUTED,
+    marginTop: 4,
+    textTransform: "uppercase",
+  },
+  reflectionTypeList: {
+    gap: 8,
+  },
+  reflectionTypeOption: {
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: ENTRY_TEXTBOX_BG,
+    borderWidth: 1,
+    borderColor: ENTRY_ACCENT,
+  },
+  reflectionTypeOptionSelected: {
+    borderColor: ENTRY_SECONDARY,
+    backgroundColor: "#EDF0E8",
+  },
+  reflectionTypeOptionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  reflectionTypeOptionTitle: {
+    color: ENTRY_TEXT,
+    fontWeight: "700",
+  },
+  reflectionTypeOptionDescription: {
+    color: ENTRY_MUTED,
+    marginTop: 3,
+  },
+  reflectionPrompt: {
+    gap: 8,
+    marginTop: 2,
+  },
+  reflectionPromptText: {
+    color: ENTRY_TEXT,
+  },
+  reflectionPromptActions: {
+    flexDirection: "row",
+    gap: 16,
   },
   metaRow: {
     flexDirection: "column",

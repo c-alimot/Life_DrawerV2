@@ -8,8 +8,34 @@ export function useEntryDetail(entryId: string) {
   const { user } = useAuthStore();
   const [entry, setEntry] = useState<EntryWithRelations | null>(null);
   const [reflectionChain, setReflectionChain] = useState<EntryWithRelations[]>([]);
+  const [isReflectionChainLoading, setIsReflectionChainLoading] = useState(false);
+  const [reflectionChainError, setReflectionChainError] = useState<ApiError | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+
+  const fetchReflectionChain = useCallback(async () => {
+    if (!user || !entryId) return;
+
+    setIsReflectionChainLoading(true);
+    setReflectionChainError(null);
+
+    const chainResult = await returnApi.getReflectionChain(entryId, user.id);
+    if (!chainResult.success || !chainResult.data) {
+      setReflectionChain([]);
+      setReflectionChainError(
+        chainResult.error || {
+          code: "UNKNOWN_ERROR",
+          message: "Failed to load connected reflections",
+        },
+      );
+      setIsReflectionChainLoading(false);
+      return;
+    }
+
+    setReflectionChain(chainResult.data);
+    setIsReflectionChainLoading(false);
+  }, [entryId, user]);
 
   const fetchEntry = useCallback(async () => {
     if (!user || !entryId) return false;
@@ -20,8 +46,7 @@ export function useEntryDetail(entryId: string) {
     try {
       const result = await entriesService.getEntryById(entryId, user.id);
       setEntry(result);
-      const chainResult = await returnApi.getReflectionChain(entryId, user.id);
-      setReflectionChain(chainResult.success && chainResult.data ? chainResult.data : []);
+      void fetchReflectionChain();
       return true;
     } catch (err) {
       const apiError = err as ApiError;
@@ -31,7 +56,7 @@ export function useEntryDetail(entryId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [user, entryId]);
+  }, [entryId, fetchReflectionChain, user]);
 
   const recordEntryView = useCallback(async () => {
     if (!user || !entryId) return false;
@@ -93,6 +118,7 @@ export function useEntryDetail(entryId: string) {
   const deleteEntry = useCallback(async () => {
     if (!user || !entryId) return false;
 
+    setIsDeleting(true);
     try {
       await entriesService.deleteEntry(entryId, user.id);
       return true;
@@ -101,8 +127,17 @@ export function useEntryDetail(entryId: string) {
       setError(apiError);
       console.error('Delete entry error:', apiError);
       return false;
+    } finally {
+      setIsDeleting(false);
     }
   }, [user, entryId]);
+
+  const getDirectChildReflections = useCallback(async () => {
+    if (!user || !entryId) return null;
+
+    const result = await returnApi.getLinkedReflections(entryId, user.id);
+    return result.success && result.data ? result.data : null;
+  }, [entryId, user]);
 
   const unlinkDrawer = useCallback(
     async (drawerId: string) => {
@@ -149,13 +184,18 @@ export function useEntryDetail(entryId: string) {
   return {
     entry,
     reflectionChain,
+    isReflectionChainLoading,
+    reflectionChainError,
+    isDeleting,
     isLoading,
     error,
     fetchEntry,
+    fetchReflectionChain,
     recordEntryView,
     setSavedForLater,
     setEntryResurfacing,
     deleteEntry,
+    getDirectChildReflections,
     unlinkDrawer,
     unlinkTag,
   };

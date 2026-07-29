@@ -525,6 +525,8 @@ export function EditEntryScreen() {
       audioUrl: audioUri || null,
       location: entry.location || null,
       occurredAt: entry.occurredAt || null,
+      parentEntryId: entry.parentEntryId,
+      reflectionType: entry.reflectionType,
     });
 
     if (result) {
