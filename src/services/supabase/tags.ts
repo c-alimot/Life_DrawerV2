@@ -21,6 +21,12 @@ type EntryRow = {
   audio_url: string | null;
   location: unknown;
   occurred_at: string | null;
+  parent_entry_id: string | null;
+  reflection_type: string | null;
+  last_viewed_at: string | null;
+  revisit_count: number;
+  saved_for_later: boolean;
+  resurfacing_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -248,6 +254,17 @@ export const tagsService = {
         ? (row.location as Entry["location"])
         : undefined,
       occurredAt: row.occurred_at ?? undefined,
+      parentEntryId: row.parent_entry_id ?? undefined,
+      reflectionType:
+        row.reflection_type === "update" ||
+        row.reflection_type === "response" ||
+        row.reflection_type === "continuation"
+          ? row.reflection_type
+          : undefined,
+      lastViewedAt: row.last_viewed_at ?? undefined,
+      revisitCount: row.revisit_count,
+      savedForLater: row.saved_for_later,
+      resurfacingEnabled: row.resurfacing_enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

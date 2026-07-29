@@ -1,5 +1,13 @@
 import { API_ERRORS } from "@constants/errors";
-import { ApiError, LoginRequest, SignupRequest } from "@types";
+import {
+  ApiError,
+  DEFAULT_RETURN_PREFERENCES,
+  LoginRequest,
+  ReturnPreferences,
+  SignupRequest,
+  UpdateReturnPreferencesRequest,
+} from "@types";
+import { updateReturnPreferencesSchema } from "@features/return/return.schemas";
 import { supabase } from "./client";
 
 const PROFILE_MEDIA_BUCKET = "entry-media";
@@ -9,6 +17,11 @@ type ProfileRow = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  return_features_enabled: boolean | null;
+  show_return_content_on_home: boolean | null;
+  show_on_this_day: boolean | null;
+  insights_return_content_enabled: boolean | null;
+  return_notification_frequency: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -228,6 +241,62 @@ export const authService = {
     }
   },
 
+  async updateReturnPreferences(
+    userId: string,
+    updates: UpdateReturnPreferencesRequest,
+  ) {
+    try {
+      const preferences = updateReturnPreferencesSchema.parse(updates);
+      const payload: {
+        return_features_enabled?: boolean;
+        show_return_content_on_home?: boolean;
+        show_on_this_day?: boolean;
+        insights_return_content_enabled?: boolean;
+        return_notification_frequency?: ReturnPreferences["notificationFrequency"];
+      } = {};
+
+      if (preferences.returnFeaturesEnabled !== undefined) {
+        payload.return_features_enabled = preferences.returnFeaturesEnabled;
+      }
+
+      if (preferences.showReturnContentOnHome !== undefined) {
+        payload.show_return_content_on_home = preferences.showReturnContentOnHome;
+      }
+
+      if (preferences.showOnThisDay !== undefined) {
+        payload.show_on_this_day = preferences.showOnThisDay;
+      }
+
+      if (preferences.insightsReturnContentEnabled !== undefined) {
+        payload.insights_return_content_enabled = preferences.insightsReturnContentEnabled;
+      }
+
+      if (preferences.notificationFrequency !== undefined) {
+        payload.return_notification_frequency = preferences.notificationFrequency;
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update(payload)
+        .eq("id", userId)
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        throw error || new Error("Return preferences update failed");
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      return this.mapProfile(user?.email || "", data as ProfileRow);
+    } catch (error) {
+      console.error("Update Return preferences error:", error);
+      throw this.handleError(error);
+    }
+  },
+
   async getProfile(userId: string) {
     const { data, error } = await supabase
       .from("profiles")
@@ -287,6 +356,11 @@ export const authService = {
       id: createdProfile.id,
       display_name: createdProfile.display_name,
       avatar_url: createdProfile.avatar_url,
+      return_features_enabled: createdProfile.return_features_enabled,
+      show_return_content_on_home: createdProfile.show_return_content_on_home,
+      show_on_this_day: createdProfile.show_on_this_day,
+      insights_return_content_enabled: createdProfile.insights_return_content_enabled,
+      return_notification_frequency: createdProfile.return_notification_frequency,
     };
   },
 
@@ -298,8 +372,32 @@ export const authService = {
       email,
       displayName: profile.display_name ?? undefined,
       avatarUrl,
+      returnPreferences: this.mapReturnPreferences(profile),
       createdAt: profile.created_at,
       updatedAt: profile.updated_at ?? profile.created_at,
+    };
+  },
+
+  mapReturnPreferences(profile: ProfileRow): ReturnPreferences {
+    const notificationFrequency = profile.return_notification_frequency;
+
+    return {
+      returnFeaturesEnabled:
+        profile.return_features_enabled ?? DEFAULT_RETURN_PREFERENCES.returnFeaturesEnabled,
+      showReturnContentOnHome:
+        profile.show_return_content_on_home ??
+        DEFAULT_RETURN_PREFERENCES.showReturnContentOnHome,
+      showOnThisDay: profile.show_on_this_day ?? DEFAULT_RETURN_PREFERENCES.showOnThisDay,
+      insightsReturnContentEnabled:
+        profile.insights_return_content_enabled ??
+        DEFAULT_RETURN_PREFERENCES.insightsReturnContentEnabled,
+      notificationFrequency:
+        notificationFrequency === "never" ||
+        notificationFrequency === "occasionally" ||
+        notificationFrequency === "weekly" ||
+        notificationFrequency === "only_in_app"
+          ? notificationFrequency
+          : DEFAULT_RETURN_PREFERENCES.notificationFrequency,
     };
   },
 

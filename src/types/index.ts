@@ -55,9 +55,34 @@ export interface Profile {
   email: string;
   displayName?: string;
   avatarUrl?: string;
+  returnPreferences: ReturnPreferences;
   createdAt: string;
   updatedAt: string;
 }
+
+export type ReflectionType = "update" | "response" | "continuation";
+
+export type ReturnNotificationFrequency =
+  | "never"
+  | "occasionally"
+  | "weekly"
+  | "only_in_app";
+
+export interface ReturnPreferences {
+  returnFeaturesEnabled: boolean;
+  showReturnContentOnHome: boolean;
+  showOnThisDay: boolean;
+  insightsReturnContentEnabled: boolean;
+  notificationFrequency: ReturnNotificationFrequency;
+}
+
+export const DEFAULT_RETURN_PREFERENCES: ReturnPreferences = {
+  returnFeaturesEnabled: true,
+  showReturnContentOnHome: true,
+  showOnThisDay: true,
+  insightsReturnContentEnabled: true,
+  notificationFrequency: "only_in_app",
+};
 
 export interface Drawer {
   id: string;
@@ -66,6 +91,7 @@ export interface Drawer {
   description?: string;
   color: string;
   icon?: string;
+  resurfacingEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +121,12 @@ export interface Entry {
   audioUrl?: string;
   location?: EntryLocation;
   occurredAt?: string;
+  parentEntryId?: string;
+  reflectionType?: ReflectionType;
+  lastViewedAt?: string;
+  revisitCount: number;
+  savedForLater: boolean;
+  resurfacingEnabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -137,6 +169,21 @@ export interface CreateEntryRequest {
   audioUri?: string;
   location?: EntryLocation;
   occurredAt?: string;
+  parentEntryId?: string | null;
+  reflectionType?: ReflectionType | null;
+  savedForLater?: boolean;
+  resurfacingEnabled?: boolean;
+}
+
+export interface CreateLinkedReflectionRequest {
+  parentEntryId: string;
+  reflectionType: ReflectionType;
+  entryData: CreateEntryRequest;
+}
+
+export interface EntryViewRecord {
+  lastViewedAt: string;
+  revisitCount: number;
 }
 
 export interface UpdateEntryRequest {
@@ -149,6 +196,10 @@ export interface UpdateEntryRequest {
   drawerIds?: string[];
   tagIds?: string[];
   occurredAt?: string | null;
+  parentEntryId?: string | null;
+  reflectionType?: ReflectionType | null;
+  savedForLater?: boolean;
+  resurfacingEnabled?: boolean;
 }
 
 export interface SearchEntriesRequest {
@@ -168,6 +219,7 @@ export interface CreateDrawerRequest {
   description?: string;
   color?: string;
   icon?: string;
+  resurfacingEnabled?: boolean;
 }
 
 export interface UpdateDrawerRequest {
@@ -175,7 +227,10 @@ export interface UpdateDrawerRequest {
   description?: string;
   color?: string;
   icon?: string;
+  resurfacingEnabled?: boolean;
 }
+
+export type UpdateReturnPreferencesRequest = Partial<ReturnPreferences>;
 
 export interface CreateTagRequest {
   name: string;

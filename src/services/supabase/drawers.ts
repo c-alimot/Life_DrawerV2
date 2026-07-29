@@ -6,6 +6,7 @@ import {
   DrawerWithRelations,
   Entry,
   EntryWithRelations,
+  DEFAULT_RETURN_PREFERENCES,
   UpdateDrawerRequest,
 } from "@types";
 import { supabase } from "./client";
@@ -18,6 +19,7 @@ type DrawerRow = {
   description: string | null;
   color: string | null;
   icon: string | null;
+  resurfacing_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -26,12 +28,18 @@ type EntryRow = {
   id: string;
   user_id: string;
   title: string;
-  content: string | null;
+  content: string;
   mood: string | null;
   images: unknown;
   audio_url: string | null;
   location: unknown;
   occurred_at: string | null;
+  parent_entry_id: string | null;
+  reflection_type: string | null;
+  last_viewed_at: string | null;
+  revisit_count: number;
+  saved_for_later: boolean;
+  resurfacing_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -40,6 +48,11 @@ type ProfileRow = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  return_features_enabled: boolean | null;
+  show_return_content_on_home: boolean | null;
+  show_on_this_day: boolean | null;
+  insights_return_content_enabled: boolean | null;
+  return_notification_frequency: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -66,6 +79,7 @@ export const drawersService = {
           description: request.description || null,
           color: request.color || "#7C9E7F",
           icon: request.icon || null,
+          resurfacing_enabled: request.resurfacingEnabled,
         })
         .select("*")
         .single();
@@ -188,6 +202,7 @@ export const drawersService = {
           description: request.description,
           color: request.color,
           icon: request.icon,
+          resurfacing_enabled: request.resurfacingEnabled,
           updated_at: new Date().toISOString(),
         })
         .eq("id", drawerId)
@@ -274,6 +289,7 @@ export const drawersService = {
       description: row.description ?? undefined,
       color: row.color ?? "#7C9E7F",
       icon: row.icon ?? undefined,
+      resurfacingEnabled: row.resurfacing_enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -292,6 +308,17 @@ export const drawersService = {
         ? (row.location as Entry["location"])
         : undefined,
       occurredAt: row.occurred_at ?? undefined,
+      parentEntryId: row.parent_entry_id ?? undefined,
+      reflectionType:
+        row.reflection_type === "update" ||
+        row.reflection_type === "response" ||
+        row.reflection_type === "continuation"
+          ? row.reflection_type
+          : undefined,
+      lastViewedAt: row.last_viewed_at ?? undefined,
+      revisitCount: row.revisit_count,
+      savedForLater: row.saved_for_later,
+      resurfacingEnabled: row.resurfacing_enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -303,6 +330,24 @@ export const drawersService = {
       email: "",
       displayName: row.display_name ?? undefined,
       avatarUrl: row.avatar_url ?? undefined,
+      returnPreferences: {
+        returnFeaturesEnabled:
+          row.return_features_enabled ?? DEFAULT_RETURN_PREFERENCES.returnFeaturesEnabled,
+        showReturnContentOnHome:
+          row.show_return_content_on_home ??
+          DEFAULT_RETURN_PREFERENCES.showReturnContentOnHome,
+        showOnThisDay: row.show_on_this_day ?? DEFAULT_RETURN_PREFERENCES.showOnThisDay,
+        insightsReturnContentEnabled:
+          row.insights_return_content_enabled ??
+          DEFAULT_RETURN_PREFERENCES.insightsReturnContentEnabled,
+        notificationFrequency:
+          row.return_notification_frequency === "never" ||
+          row.return_notification_frequency === "occasionally" ||
+          row.return_notification_frequency === "weekly" ||
+          row.return_notification_frequency === "only_in_app"
+            ? row.return_notification_frequency
+            : DEFAULT_RETURN_PREFERENCES.notificationFrequency,
+      },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

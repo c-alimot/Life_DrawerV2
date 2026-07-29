@@ -48,6 +48,7 @@ const STARTER_DRAWER: DrawerListItem = {
   entryCount: 0,
   color: "#8C9A7F",
   icon: "archive-outline",
+  resurfacingEnabled: true,
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
 };

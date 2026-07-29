@@ -1,5 +1,5 @@
 import { AppPageHeader, SafeArea, Screen } from "@components/layout";
-import { Button } from "@components/ui";
+import { AppModalSheet, Button } from "@components/ui";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
 import { MOOD_MAP } from "@constants/moods";
 import { MaterialCommunityIcons } from "@components/ui/icons";
@@ -29,18 +29,34 @@ export function EntryDetailScreen() {
   const { entryId } = useLocalSearchParams<{ entryId: string }>();
   const entryIdValue = Array.isArray(entryId) ? entryId[0] : entryId;
   const resolvedEntryId = entryIdValue ?? "";
-  const { entry, isLoading, fetchEntry, deleteEntry, unlinkDrawer, unlinkTag } =
-    useEntryDetail(resolvedEntryId);
+  const {
+    entry,
+    reflectionChain,
+    isLoading,
+    fetchEntry,
+    recordEntryView,
+    setSavedForLater,
+    setEntryResurfacing,
+    deleteEntry,
+    unlinkDrawer,
+    unlinkTag,
+  } = useEntryDetail(resolvedEntryId);
   const { isPlaying, duration, position, play } = useAudioPlayer(
     entry?.audioUrl || null,
   );
 
   const [activeTab, setActiveTab] = useState<TabType>("content");
+  const [isReturnActionsOpen, setIsReturnActionsOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      fetchEntry();
-    }, [fetchEntry]),
+      void (async () => {
+        const entryLoaded = await fetchEntry();
+        if (entryLoaded) {
+          await recordEntryView();
+        }
+      })();
+    }, [fetchEntry, recordEntryView]),
   );
 
   const handleEdit = useCallback(() => {
@@ -65,6 +81,30 @@ export function EntryDetailScreen() {
       },
     ]);
   }, [deleteEntry]);
+
+  const handleSavedForLater = useCallback(async () => {
+    if (!entry) return;
+
+    const success = await setSavedForLater(!entry.savedForLater);
+    if (!success) {
+      Alert.alert("Unable to save", "Please try again in a moment.");
+      return;
+    }
+
+    setIsReturnActionsOpen(false);
+  }, [entry, setSavedForLater]);
+
+  const handleEntryResurfacing = useCallback(async () => {
+    if (!entry) return;
+
+    const success = await setEntryResurfacing(!entry.resurfacingEnabled);
+    if (!success) {
+      Alert.alert("Unable to update this entry", "Please try again in a moment.");
+      return;
+    }
+
+    setIsReturnActionsOpen(false);
+  }, [entry, setEntryResurfacing]);
 
   const handleRemoveDrawer = useCallback(
     (drawerId: string) => {
@@ -151,6 +191,18 @@ export function EntryDetailScreen() {
                 size="sm"
                 accessibilityLabel="Edit entry"
               />
+              <TouchableOpacity
+                onPress={() => setIsReturnActionsOpen(true)}
+                accessible
+                accessibilityLabel="Entry options"
+                style={styles.returnActionsButton}
+              >
+                <MaterialCommunityIcons
+                  name="dots-horizontal"
+                  size={24}
+                  color={theme.colors.text}
+                />
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleDelete}
                 accessible
@@ -318,6 +370,34 @@ export function EntryDetailScreen() {
               >
                 {entry.content}
               </Text>
+
+              {(entry.parentEntryId || reflectionChain.length > 1) && (
+                <View style={[styles.reflectionSection, { borderColor: theme.colors.border }]}>
+                  <Text style={[theme.typography.h3, { color: theme.colors.text }]}>
+                    Part of a continuing reflection
+                  </Text>
+                  <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>
+                    {entry.parentEntryId
+                      ? "This entry is connected to an earlier reflection."
+                      : "This entry has connected reflections."}
+                  </Text>
+                  {reflectionChain
+                    .filter((connectedEntry) => connectedEntry.id !== entry.id)
+                    .map((connectedEntry) => (
+                      <TouchableOpacity
+                        key={connectedEntry.id}
+                        onPress={() => router.push(`/entry/${connectedEntry.id}`)}
+                        accessible
+                        accessibilityLabel={`Open connected reflection ${connectedEntry.title}`}
+                        style={styles.reflectionLink}
+                      >
+                        <Text style={[theme.typography.bodySm, { color: theme.colors.primary }]}>
+                          {connectedEntry.title || "View connected reflection"}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -602,6 +682,38 @@ export function EntryDetailScreen() {
             </View>
           )}
         </ScrollView>
+
+        <AppModalSheet
+          visible={isReturnActionsOpen}
+          onClose={() => setIsReturnActionsOpen(false)}
+          contentStyle={styles.returnActionsSheet}
+        >
+          <Text style={[theme.typography.h3, { color: theme.colors.text }]}>Entry options</Text>
+          <Text style={[theme.typography.bodySm, styles.returnActionsSubtitle, { color: theme.colors.textSecondary }]}>
+            Choose how you would like to return to this entry.
+          </Text>
+          <Button
+            label={entry.savedForLater ? "Remove from saved" : "Save for later"}
+            onPress={handleSavedForLater}
+            variant="primary"
+            style={styles.returnActionButton}
+            accessibilityLabel={entry.savedForLater ? "Remove entry from saved" : "Save entry for later"}
+          />
+          <Button
+            label={entry.resurfacingEnabled ? "Do not bring this back automatically" : "Allow this in Return suggestions"}
+            onPress={handleEntryResurfacing}
+            variant="primary"
+            style={styles.returnActionButton}
+            accessibilityLabel={entry.resurfacingEnabled ? "Disable Return suggestions for this entry" : "Allow Return suggestions for this entry"}
+          />
+          <Button
+            label="Cancel"
+            onPress={() => setIsReturnActionsOpen(false)}
+            variant="primary"
+            style={styles.returnActionButton}
+            accessibilityLabel="Close entry options"
+          />
+        </AppModalSheet>
       </Screen>
     </SafeArea>
   );
@@ -617,6 +729,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   deleteButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  returnActionsButton: {
     width: 40,
     height: 40,
     alignItems: "center",
@@ -688,6 +806,24 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   sectionBlock: {
+    width: "100%",
+  },
+  reflectionSection: {
+    marginTop: 24,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  reflectionLink: {
+    paddingVertical: 4,
+  },
+  returnActionsSheet: {
+    gap: 12,
+  },
+  returnActionsSubtitle: {
+    marginBottom: 4,
+  },
+  returnActionButton: {
     width: "100%",
   },
   sectionLabel: {

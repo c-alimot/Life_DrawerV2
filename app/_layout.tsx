@@ -8,7 +8,7 @@ import {
   getOnboardingCompleted,
 } from "@features/auth/utils/onboarding";
 import { supabase } from "@services/supabase";
-import type { Profile } from "@types";
+import { DEFAULT_RETURN_PREFERENCES, type Profile } from "@types";
 import { useAuthStore } from "@store";
 import { useFonts } from "expo-font";
 import { Stack, usePathname, useRouter } from "expo-router";
@@ -66,6 +66,7 @@ function mapSessionUserToProfile(
     email: sessionUser.email || "",
     displayName,
     avatarUrl,
+    returnPreferences: DEFAULT_RETURN_PREFERENCES,
     createdAt: sessionUser.created_at || new Date().toISOString(),
     updatedAt:
       sessionUser.updated_at || sessionUser.created_at || new Date().toISOString(),

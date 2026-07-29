@@ -85,6 +85,7 @@ export function DrawerDetailScreen() {
   const [editName, setEditName] = useState("");
   const [editColor, setEditColor] = useState("");
   const [editIcon, setEditIcon] = useState<string>(DEFAULT_DRAWER_ICON);
+  const [editResurfacingEnabled, setEditResurfacingEnabled] = useState(true);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [draftSortOrder, setDraftSortOrder] = useState<"desc" | "asc">("desc");
@@ -105,6 +106,7 @@ export function DrawerDetailScreen() {
         setEditColor(drawer.color);
         const supported = DRAWER_ICON_OPTIONS.some((option) => option.value === drawer.icon);
         setEditIcon(supported ? (drawer.icon as string) : DEFAULT_DRAWER_ICON);
+        setEditResurfacingEnabled(drawer.resurfacingEnabled);
       }
     }, [drawer]),
   );
@@ -156,6 +158,7 @@ export function DrawerDetailScreen() {
       name: editName,
       color: editColor,
       icon: editIcon,
+      resurfacingEnabled: editResurfacingEnabled,
     });
 
     if (success) {
@@ -165,7 +168,7 @@ export function DrawerDetailScreen() {
     } else {
       Alert.alert("Error", "Failed to update drawer");
     }
-  }, [editColor, editIcon, editName, fetchDrawer, updateDrawer]);
+  }, [editColor, editIcon, editName, editResurfacingEnabled, fetchDrawer, updateDrawer]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -640,6 +643,34 @@ export function DrawerDetailScreen() {
                   </View>
                 </View>
 
+                <TouchableOpacity
+                  onPress={() => setEditResurfacingEnabled((enabled) => !enabled)}
+                  style={styles.returnSetting}
+                  accessible
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: editResurfacingEnabled }}
+                  accessibilityLabel="Include this Drawer in Return suggestions"
+                >
+                  <View style={styles.returnSettingCopy}>
+                    <Text style={[theme.typography.body, styles.returnSettingTitle]}>
+                      Include this Drawer in Return suggestions
+                    </Text>
+                    <Text style={[theme.typography.bodySm, styles.returnSettingDescription]}>
+                      Entries will still remain available in this Drawer and in search.
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.returnSettingCheckbox,
+                      editResurfacingEnabled && styles.returnSettingCheckboxSelected,
+                    ]}
+                  >
+                    {editResurfacingEnabled ? (
+                      <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
+                    ) : null}
+                  </View>
+                </TouchableOpacity>
+
                 <View>
                   <Text style={[theme.typography.labelSm, styles.modalLabel]}>
                     Color
@@ -713,6 +744,41 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: "center",
     justifyContent: "center",
+  },
+  returnSetting: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: PAGE_SOFT_SURFACE,
+  },
+  returnSettingCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  returnSettingTitle: {
+    color: PAGE_TEXT,
+    fontWeight: "600",
+  },
+  returnSettingDescription: {
+    color: PAGE_MUTED,
+    lineHeight: 19,
+  },
+  returnSettingCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: PAGE_BORDER,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PAGE_SURFACE,
+  },
+  returnSettingCheckboxSelected: {
+    borderColor: PAGE_PRIMARY,
+    backgroundColor: PAGE_PRIMARY,
   },
   heroBlock: {
     marginBottom: 18,

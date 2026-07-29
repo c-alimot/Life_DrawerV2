@@ -1,5 +1,10 @@
 import { authService } from '@services';
-import { SignupRequest, LoginRequest, ApiError } from '@types';
+import {
+  SignupRequest,
+  LoginRequest,
+  ApiError,
+  UpdateReturnPreferencesRequest,
+} from '@types';
 
 export const authApi = {
   /**
@@ -159,6 +164,27 @@ export const authApi = {
       };
     } catch (error) {
       console.error("Auth API upload profile photo error:", error);
+      return {
+        success: false,
+        data: null,
+        error: error as ApiError,
+      };
+    }
+  },
+
+  async updateReturnPreferences(
+    userId: string,
+    updates: UpdateReturnPreferencesRequest,
+  ) {
+    try {
+      const result = await authService.updateReturnPreferences(userId, updates);
+      return {
+        success: true,
+        data: result,
+        error: null,
+      };
+    } catch (error) {
+      console.error("Auth API Return preferences update error:", error);
       return {
         success: false,
         data: null,

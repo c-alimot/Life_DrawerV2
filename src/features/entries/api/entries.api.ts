@@ -115,6 +115,24 @@ export const entriesApi = {
     }
   },
 
+  async markEntryAsViewed(entryId: string, userId: string) {
+    try {
+      const lastViewedAt = await entriesService.markEntryAsViewed(entryId, userId);
+      return {
+        success: true,
+        data: { lastViewedAt },
+        error: null,
+      };
+    } catch (error) {
+      console.error('Entries API mark viewed error:', error);
+      return {
+        success: false,
+        data: null,
+        error: error as ApiError,
+      };
+    }
+  },
+
   async linkToDrawer(entryId: string, drawerId: string, userId: string) {
     try {
       await entriesService.linkEntryToDrawer(entryId, drawerId, userId);

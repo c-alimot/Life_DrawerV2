@@ -5,10 +5,12 @@ import {
   Entry,
   EntryLocation,
   EntryWithRelations,
+  DEFAULT_RETURN_PREFERENCES,
   MoodValue,
   SearchEntriesRequest,
   UpdateEntryRequest,
 } from "@types";
+import { entryReturnFieldsSchema } from "@features/return/return.schemas";
 import { supabase } from "./client";
 import type { Database } from "./types";
 
@@ -22,6 +24,12 @@ type EntryRow = {
   audio_url: string | null;
   location: unknown;
   occurred_at: string | null;
+  parent_entry_id: string | null;
+  reflection_type: string | null;
+  last_viewed_at: string | null;
+  revisit_count: number;
+  saved_for_later: boolean;
+  resurfacing_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -33,6 +41,7 @@ type DrawerRow = {
   description: string | null;
   color: string | null;
   icon: string | null;
+  resurfacing_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -50,6 +59,11 @@ type ProfileRow = {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  return_features_enabled: boolean | null;
+  show_return_content_on_home: boolean | null;
+  show_on_this_day: boolean | null;
+  insights_return_content_enabled: boolean | null;
+  return_notification_frequency: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -66,12 +80,31 @@ export const entriesService = {
     let mediaPersisted = false;
 
     try {
+      const returnFields = entryReturnFieldsSchema.parse({
+        parentEntryId: request.parentEntryId,
+        reflectionType: request.reflectionType,
+        savedForLater: request.savedForLater,
+        resurfacingEnabled: request.resurfacingEnabled,
+      });
+
       const entryInsertPayload: EntryInsertPayload = {
         user_id: userId,
         title: request.title,
         content: request.content,
         mood: request.mood || null,
         occurred_at: request.occurredAt || null,
+        ...(returnFields.parentEntryId !== undefined
+          ? { parent_entry_id: returnFields.parentEntryId }
+          : {}),
+        ...(returnFields.reflectionType !== undefined
+          ? { reflection_type: returnFields.reflectionType }
+          : {}),
+        ...(returnFields.savedForLater !== undefined
+          ? { saved_for_later: returnFields.savedForLater }
+          : {}),
+        ...(returnFields.resurfacingEnabled !== undefined
+          ? { resurfacing_enabled: returnFields.resurfacingEnabled }
+          : {}),
       };
 
       const { data: entry, error: entryError } = await supabase
@@ -277,6 +310,12 @@ export const entriesService = {
 
   async updateEntry(entryId: string, userId: string, request: UpdateEntryRequest) {
     try {
+      const returnFields = entryReturnFieldsSchema.parse({
+        parentEntryId: request.parentEntryId,
+        reflectionType: request.reflectionType,
+        savedForLater: request.savedForLater,
+        resurfacingEnabled: request.resurfacingEnabled,
+      });
       let imageUrls = await this.normalizeStoredMediaRefs(userId, request.imageUris);
       const entryImagePrefix = `${userId}/${entryId}/images/`;
       imageUrls = imageUrls.filter(
@@ -311,6 +350,18 @@ export const entriesService = {
         audio_url: normalizedAudioUrl,
         location: request.location as any,
         occurred_at: request.occurredAt,
+        ...(returnFields.parentEntryId !== undefined
+          ? { parent_entry_id: returnFields.parentEntryId }
+          : {}),
+        ...(returnFields.reflectionType !== undefined
+          ? { reflection_type: returnFields.reflectionType }
+          : {}),
+        ...(returnFields.savedForLater !== undefined
+          ? { saved_for_later: returnFields.savedForLater }
+          : {}),
+        ...(returnFields.resurfacingEnabled !== undefined
+          ? { resurfacing_enabled: returnFields.resurfacingEnabled }
+          : {}),
         updated_at: new Date().toISOString(),
       };
 
@@ -384,6 +435,28 @@ export const entriesService = {
       if (error) throw error;
     } catch (error) {
       console.error("Delete entry error:", error);
+      throw this.handleError(error);
+    }
+  },
+
+  async markEntryAsViewed(entryId: string, userId: string): Promise<string> {
+    try {
+      const lastViewedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("entries")
+        .update({ last_viewed_at: lastViewedAt })
+        .eq("id", entryId)
+        .eq("user_id", userId)
+        .select("last_viewed_at")
+        .single();
+
+      if (error || !data?.last_viewed_at) {
+        throw error || new Error("Unable to record entry view");
+      }
+
+      return data.last_viewed_at;
+    } catch (error) {
+      console.error("Mark entry viewed error:", error);
       throw this.handleError(error);
     }
   },
@@ -819,6 +892,12 @@ export const entriesService = {
       audioUrl,
       location: this.parseLocation(row.location),
       occurredAt: row.occurred_at ?? undefined,
+      parentEntryId: row.parent_entry_id ?? undefined,
+      reflectionType: this.normalizeReflectionType(row.reflection_type),
+      lastViewedAt: row.last_viewed_at ?? undefined,
+      revisitCount: row.revisit_count,
+      savedForLater: row.saved_for_later,
+      resurfacingEnabled: row.resurfacing_enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -832,6 +911,7 @@ export const entriesService = {
       description: row.description ?? undefined,
       color: row.color ?? "#7C9E7F",
       icon: row.icon ?? undefined,
+      resurfacingEnabled: row.resurfacing_enabled,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -854,6 +934,24 @@ export const entriesService = {
       email: "",
       displayName: row.display_name ?? undefined,
       avatarUrl: row.avatar_url ?? undefined,
+      returnPreferences: {
+        returnFeaturesEnabled:
+          row.return_features_enabled ?? DEFAULT_RETURN_PREFERENCES.returnFeaturesEnabled,
+        showReturnContentOnHome:
+          row.show_return_content_on_home ??
+          DEFAULT_RETURN_PREFERENCES.showReturnContentOnHome,
+        showOnThisDay: row.show_on_this_day ?? DEFAULT_RETURN_PREFERENCES.showOnThisDay,
+        insightsReturnContentEnabled:
+          row.insights_return_content_enabled ??
+          DEFAULT_RETURN_PREFERENCES.insightsReturnContentEnabled,
+        notificationFrequency:
+          row.return_notification_frequency === "never" ||
+          row.return_notification_frequency === "occasionally" ||
+          row.return_notification_frequency === "weekly" ||
+          row.return_notification_frequency === "only_in_app"
+            ? row.return_notification_frequency
+            : DEFAULT_RETURN_PREFERENCES.notificationFrequency,
+      },
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
@@ -901,6 +999,14 @@ export const entriesService = {
     ];
 
     return value && allowed.includes(value as MoodValue) ? (value as MoodValue) : undefined;
+  },
+
+  normalizeReflectionType(value: string | null): Entry["reflectionType"] {
+    if (value === "update" || value === "response" || value === "continuation") {
+      return value;
+    }
+
+    return undefined;
   },
 
   handleError(error: any): ApiError {

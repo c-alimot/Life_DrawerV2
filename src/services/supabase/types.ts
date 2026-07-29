@@ -22,6 +22,7 @@ export type Database = {
           icon: string | null
           id: string
           name: string
+          resurfacing_enabled: boolean
           updated_at: string
           user_id: string
         }
@@ -32,6 +33,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name: string
+          resurfacing_enabled?: boolean
           updated_at?: string
           user_id: string
         }
@@ -42,6 +44,7 @@ export type Database = {
           icon?: string | null
           id?: string
           name?: string
+          resurfacing_enabled?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -66,6 +69,12 @@ export type Database = {
           location: Json | null
           mood: string | null
           occurred_at: string | null
+          parent_entry_id: string | null
+          reflection_type: string | null
+          last_viewed_at: string | null
+          revisit_count: number
+          saved_for_later: boolean
+          resurfacing_enabled: boolean
           title: string | null
           updated_at: string
           user_id: string
@@ -80,6 +89,12 @@ export type Database = {
           location?: Json | null
           mood?: string | null
           occurred_at?: string | null
+          parent_entry_id?: string | null
+          reflection_type?: string | null
+          last_viewed_at?: string | null
+          revisit_count?: number
+          saved_for_later?: boolean
+          resurfacing_enabled?: boolean
           title?: string | null
           updated_at?: string
           user_id: string
@@ -94,11 +109,24 @@ export type Database = {
           location?: Json | null
           mood?: string | null
           occurred_at?: string | null
+          parent_entry_id?: string | null
+          reflection_type?: string | null
+          last_viewed_at?: string | null
+          revisit_count?: number
+          saved_for_later?: boolean
+          resurfacing_enabled?: boolean
           title?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "entries_parent_entry_user_fk"
+            columns: ["parent_entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id", "user_id"]
+          },
           {
             foreignKeyName: "entries_life_phase_id_fkey"
             columns: ["life_phase_id"]
@@ -249,6 +277,11 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          insights_return_content_enabled: boolean
+          return_features_enabled: boolean
+          return_notification_frequency: string
+          show_on_this_day: boolean
+          show_return_content_on_home: boolean
           updated_at: string
         }
         Insert: {
@@ -256,6 +289,11 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          insights_return_content_enabled?: boolean
+          return_features_enabled?: boolean
+          return_notification_frequency?: string
+          show_on_this_day?: boolean
+          show_return_content_on_home?: boolean
           updated_at?: string
         }
         Update: {
@@ -263,6 +301,11 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          insights_return_content_enabled?: boolean
+          return_features_enabled?: boolean
+          return_notification_frequency?: string
+          show_on_this_day?: boolean
+          show_return_content_on_home?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -304,7 +347,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_entry_view: {
+        Args: {
+          p_entry_id: string
+        }
+        Returns: {
+          last_viewed_at: string
+          revisit_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
