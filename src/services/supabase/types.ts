@@ -374,6 +374,45 @@ export type Database = {
           resurface_count: number
         }[]
       }
+      get_drawer_return_overview: {
+        Args: {
+          p_drawer_id: string
+        }
+        Returns: {
+          entry_count: number
+          first_entry_at: string | null
+          latest_entry_at: string | null
+          saved_for_later_count: number
+          connected_reflection_count: number
+          revisited_count: number
+        }[]
+      }
+      get_drawer_filtered_entry_ids: {
+        Args: {
+          p_drawer_id: string
+          p_filter?: string
+          p_sort?: string
+          p_tag_id?: string | null
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          entry_id: string
+          total_count: number
+        }[]
+      }
+      get_drawer_common_tags: {
+        Args: {
+          p_drawer_id: string
+          p_limit?: number
+        }
+        Returns: {
+          tag_id: string
+          tag_name: string
+          tag_color: string | null
+          entry_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

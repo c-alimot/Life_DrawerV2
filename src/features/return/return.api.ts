@@ -6,6 +6,43 @@ import type {
 } from "@types";
 
 export const returnApi = {
+  async getDrawerCommonTags(drawerId: string) {
+    try {
+      const result = await returnService.getDrawerCommonTags(drawerId);
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
+  async getDrawerReturnOverview(drawerId: string) {
+    try {
+      const result = await returnService.getDrawerReturnOverview(drawerId);
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
+  async getDrawerReturnCandidate(
+    drawerId: string,
+    userId: string,
+    preferences: Pick<ReturnPreferences, "returnFeaturesEnabled">,
+    excludedEntryIds?: string[],
+  ) {
+    try {
+      const result = await returnService.getDrawerReturnCandidate(
+        drawerId,
+        userId,
+        preferences,
+        excludedEntryIds,
+      );
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
   async getHomeReturnCandidate(
     userId: string,
     preferences: Pick<

@@ -10,9 +10,11 @@ import {
 } from "@constants/entryPreviewPills";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { DrawerOverview, DrawerReturnSection, useDrawerReturn } from "@features/return";
+import type { DrawerEntryFilter, DrawerEntrySort } from "@types";
 import { Fonts, useTheme } from "@styles/theme";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -59,10 +61,112 @@ const DRAWER_ICON_OPTIONS = [
   { value: "camera-outline", label: "Photos" },
 ] as const;
 
+const DRAWER_FILTER_OPTIONS: { label: string; value: DrawerEntryFilter }[] = [
+  { label: "All entries", value: "all" },
+  { label: "Saved for later", value: "saved_for_later" },
+  { label: "Connected reflections", value: "connected_reflections" },
+  { label: "Revisited", value: "revisited" },
+  { label: "Not revisited", value: "not_revisited" },
+];
+
+function parseDrawerFilter(value?: string): DrawerEntryFilter {
+  const routeFilterMap: Record<string, DrawerEntryFilter> = {
+    all: "all",
+    saved: "saved_for_later",
+    connected: "connected_reflections",
+    revisited: "revisited",
+    "not-revisited": "not_revisited",
+  };
+
+  return value && routeFilterMap[value] ? routeFilterMap[value] : "all";
+}
+
+function parseDrawerSort(value?: string): DrawerEntrySort {
+  const supportedSorts: DrawerEntrySort[] = [
+    "newest",
+    "oldest",
+    "least_recently_viewed",
+    "most_recently_revisited",
+  ];
+
+  return supportedSorts.includes(value as DrawerEntrySort)
+    ? (value as DrawerEntrySort)
+    : "newest";
+}
+
+function toRouteFilter(filter: DrawerEntryFilter): string {
+  const routeFilterMap: Record<DrawerEntryFilter, string> = {
+    all: "all",
+    saved_for_later: "saved",
+    connected_reflections: "connected",
+    revisited: "revisited",
+    not_revisited: "not-revisited",
+  };
+
+  return routeFilterMap[filter];
+}
+
+function getSortOptions(filter: DrawerEntryFilter) {
+  const options: { label: string; value: DrawerEntrySort }[] = [
+    { label: "Newest First", value: "newest" },
+    { label: "Oldest First", value: "oldest" },
+  ];
+
+  if (filter === "all" || filter === "not_revisited") {
+    options.push({ label: "Least Recently Viewed", value: "least_recently_viewed" });
+  }
+
+  if (filter === "revisited") {
+    options.push({ label: "Most Recently Revisited", value: "most_recently_revisited" });
+  }
+
+  return options;
+}
+
+function getFilterEmptyState(filter: DrawerEntryFilter, hasTagFilter: boolean) {
+  if (hasTagFilter) {
+    return {
+      title: "No entries with this tag",
+      description: "Try another tag or view all entries in this drawer.",
+    };
+  }
+
+  const emptyStates: Record<Exclude<DrawerEntryFilter, "all">, { title: string; description: string }> = {
+    saved_for_later: {
+      title: "Nothing saved for later",
+      description: "You have not saved anything from this drawer for later.",
+    },
+    connected_reflections: {
+      title: "No continuing reflections yet",
+      description: "No continuing reflections in this drawer yet.",
+    },
+    revisited: {
+      title: "Nothing revisited yet",
+      description: "You can return to any entry whenever it feels useful.",
+    },
+    not_revisited: {
+      title: "Older entries have been revisited",
+      description: "You have already returned to the older entries in this drawer.",
+    },
+  };
+
+  return filter === "all"
+    ? { title: "No entries yet", description: "Create your first entry in this drawer when you're ready" }
+    : emptyStates[filter];
+}
+
 export function DrawerDetailScreen() {
   const theme = useTheme();
-  const { drawerId } = useLocalSearchParams<{ drawerId: string }>();
+  const { drawerId, filter, sort, tagId } = useLocalSearchParams<{
+    drawerId: string;
+    filter?: string;
+    sort?: string;
+    tagId?: string;
+  }>();
   const drawerIdValue = Array.isArray(drawerId) ? drawerId[0] : drawerId;
+  const filterValue = Array.isArray(filter) ? filter[0] : filter;
+  const sortValue = Array.isArray(sort) ? sort[0] : sort;
+  const tagIdValue = Array.isArray(tagId) ? tagId[0] : tagId;
   const resolvedDrawerId = drawerIdValue ?? "";
 
   const {
@@ -78,6 +182,18 @@ export function DrawerDetailScreen() {
     isLoading: entriesLoading,
     fetchEntries,
   } = useDrawerEntries(resolvedDrawerId);
+  const {
+    overview: drawerOverview,
+    candidate: drawerReturnCandidate,
+    isOverviewLoading,
+    isCandidateLoading,
+    candidateError: drawerReturnError,
+    commonTags,
+    fetchOverview,
+    fetchCandidate,
+    fetchCommonTags,
+    recordCandidateDisplay,
+  } = useDrawerReturn(resolvedDrawerId);
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditOptionsModal, setShowEditOptionsModal] = useState(false);
@@ -86,17 +202,57 @@ export function DrawerDetailScreen() {
   const [editColor, setEditColor] = useState("");
   const [editIcon, setEditIcon] = useState<string>(DEFAULT_DRAWER_ICON);
   const [editResurfacingEnabled, setEditResurfacingEnabled] = useState(true);
-  const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
-  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
-  const [draftSortOrder, setDraftSortOrder] = useState<"desc" | "asc">("desc");
-  const [draftTagId, setDraftTagId] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<DrawerEntryFilter>(() =>
+    parseDrawerFilter(filterValue),
+  );
+  const [sortOrder, setSortOrder] = useState<DrawerEntrySort>(() => parseDrawerSort(sortValue));
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(tagIdValue || null);
+  const [draftFilter, setDraftFilter] = useState<DrawerEntryFilter>(() =>
+    parseDrawerFilter(filterValue),
+  );
+  const [draftSortOrder, setDraftSortOrder] = useState<DrawerEntrySort>(() =>
+    parseDrawerSort(sortValue),
+  );
+  const [draftTagId, setDraftTagId] = useState<string | null>(tagIdValue || null);
+  const [canExploreDrawerReturn, setCanExploreDrawerReturn] = useState(true);
+  const displayedDrawerReturnEntryIds = useRef(new Set<string>());
 
   useFocusEffect(
     useCallback(() => {
       fetchDrawer();
-      fetchEntries();
-    }, [fetchDrawer, fetchEntries]),
+      fetchEntries({
+        filter: selectedFilter,
+        sort: sortOrder,
+        tagId: selectedTagId,
+      });
+      void fetchOverview();
+      void fetchCandidate();
+      void fetchCommonTags();
+    }, [
+      fetchCandidate,
+      fetchCommonTags,
+      fetchDrawer,
+      fetchEntries,
+      fetchOverview,
+      selectedFilter,
+      selectedTagId,
+      sortOrder,
+    ]),
   );
+
+  useEffect(() => {
+    const entryId = drawerReturnCandidate?.entry.id;
+    if (!entryId || displayedDrawerReturnEntryIds.current.has(entryId)) {
+      return;
+    }
+
+    displayedDrawerReturnEntryIds.current.add(entryId);
+    void recordCandidateDisplay(entryId);
+  }, [drawerReturnCandidate, recordCandidateDisplay]);
+
+  useEffect(() => {
+    setCanExploreDrawerReturn(true);
+  }, [drawerReturnCandidate?.entry.id]);
 
   // Initialize edit form
   useFocusEffect(
@@ -129,24 +285,18 @@ export function DrawerDetailScreen() {
       });
     });
 
-    return Array.from(tagMap.values());
-  }, [drawerEntries]);
-
-  const visibleEntries = useMemo(() => {
-    const filtered = selectedTagId
-      ? drawerEntries.filter((entry) =>
-          (entry.tags || []).some((tag) => tag.id === selectedTagId),
-        )
-      : drawerEntries;
-
-    return [...filtered].sort((a, b) => {
-      const left = new Date(a.createdAt).getTime();
-      const right = new Date(b.createdAt).getTime();
-      return sortOrder === "asc" ? left - right : right - left;
+    commonTags.forEach((tag) => {
+      if (!tagMap.has(tag.id)) {
+        tagMap.set(tag.id, { id: tag.id, name: tag.name, color: tag.color ?? null });
+      }
     });
-  }, [drawerEntries, selectedTagId, sortOrder]);
 
-  const hasActiveFilters = sortOrder !== "desc" || selectedTagId !== null;
+    return Array.from(tagMap.values()).sort((left, right) => left.name.localeCompare(right.name));
+  }, [commonTags, drawerEntries]);
+
+  const visibleEntries = drawerEntries;
+  const hasActiveFilters =
+    selectedFilter !== "all" || sortOrder !== "newest" || selectedTagId !== null;
 
   const handleEdit = useCallback(async () => {
     if (!editName.trim()) {
@@ -165,10 +315,19 @@ export function DrawerDetailScreen() {
       Alert.alert("Success", "Drawer updated");
       setShowEditModal(false);
       fetchDrawer();
+      void fetchCandidate();
     } else {
       Alert.alert("Error", "Failed to update drawer");
     }
-  }, [editColor, editIcon, editName, editResurfacingEnabled, fetchDrawer, updateDrawer]);
+  }, [
+    editColor,
+    editIcon,
+    editName,
+    editResurfacingEnabled,
+    fetchCandidate,
+    fetchDrawer,
+    updateDrawer,
+  ]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -196,6 +355,24 @@ export function DrawerDetailScreen() {
   const handleEntryPress = useCallback((entryId: string) => {
     router.push(`/edit-entry/${entryId}`);
   }, []);
+
+  const handleOpenDrawerReturnEntry = useCallback((entryId: string) => {
+    router.push(`/entry/${entryId}`);
+  }, []);
+
+  const handleExploreDrawerReturn = useCallback(async () => {
+    if (!drawerReturnCandidate) {
+      return;
+    }
+
+    const nextCandidate = await fetchCandidate([drawerReturnCandidate.entry.id], false);
+    if (!nextCandidate) {
+      setCanExploreDrawerReturn(false);
+      return;
+    }
+
+    router.push(`/entry/${nextCandidate.entry.id}`);
+  }, [drawerReturnCandidate, fetchCandidate]);
 
   const handleCreateEntry = useCallback(() => {
     router.push(
@@ -226,32 +403,74 @@ export function DrawerDetailScreen() {
   }, []);
 
   const openFilters = useCallback(() => {
+    setDraftFilter(selectedFilter);
     setDraftSortOrder(sortOrder);
     setDraftTagId(selectedTagId);
     setIsFiltersOpen(true);
-  }, [selectedTagId, sortOrder]);
+  }, [selectedFilter, selectedTagId, sortOrder]);
 
   const closeFilters = useCallback(() => {
     setIsFiltersOpen(false);
   }, []);
 
   const handleSaveFilters = useCallback(() => {
-    setSortOrder(draftSortOrder);
+    const availableSorts = getSortOptions(draftFilter);
+    const nextSortOrder = availableSorts.some((option) => option.value === draftSortOrder)
+      ? draftSortOrder
+      : "newest";
+
+    setSelectedFilter(draftFilter);
+    setSortOrder(nextSortOrder);
     setSelectedTagId(draftTagId);
+    router.setParams({
+      filter: toRouteFilter(draftFilter),
+      sort: nextSortOrder,
+      tagId: draftTagId || "",
+    });
     setIsFiltersOpen(false);
-  }, [draftSortOrder, draftTagId]);
+  }, [draftFilter, draftSortOrder, draftTagId]);
 
   const handleClearFilters = useCallback(() => {
-    setSortOrder("desc");
+    setSelectedFilter("all");
+    setSortOrder("newest");
     setSelectedTagId(null);
-    setDraftSortOrder("desc");
+    setDraftFilter("all");
+    setDraftSortOrder("newest");
     setDraftTagId(null);
+    router.setParams({ filter: "all", sort: "newest", tagId: "" });
   }, []);
 
   const handleClearDraftFilters = useCallback(() => {
-    setDraftSortOrder("desc");
+    setDraftFilter("all");
+    setDraftSortOrder("newest");
     setDraftTagId(null);
   }, []);
+
+  const handleApplyReturnFilter = useCallback((filter: DrawerEntryFilter) => {
+    const nextSortOrder = getSortOptions(filter).some((option) => option.value === sortOrder)
+      ? sortOrder
+      : "newest";
+
+    setSelectedFilter(filter);
+    setSortOrder(nextSortOrder);
+    setDraftFilter(filter);
+    setDraftSortOrder(nextSortOrder);
+    router.setParams({
+      filter: toRouteFilter(filter),
+      sort: nextSortOrder,
+      tagId: selectedTagId || "",
+    });
+  }, [selectedTagId, sortOrder]);
+
+  const handleSelectCommonTag = useCallback((nextTagId: string) => {
+    setSelectedTagId(nextTagId);
+    setDraftTagId(nextTagId);
+    router.setParams({
+      filter: toRouteFilter(selectedFilter),
+      sort: sortOrder,
+      tagId: nextTagId,
+    });
+  }, [selectedFilter, sortOrder]);
 
   const colorOptions = [
     "#FF6B6B",
@@ -263,6 +482,10 @@ export function DrawerDetailScreen() {
     "#BB8FCE",
     "#85C1E2",
   ];
+  const selectedSortLabel =
+    getSortOptions(selectedFilter).find((option) => option.value === sortOrder)?.label ||
+    "Newest First";
+  const emptyState = getFilterEmptyState(selectedFilter, selectedTagId !== null);
 
   if (drawerLoading) {
     return (
@@ -327,6 +550,25 @@ export function DrawerDetailScreen() {
             />
           </View>
 
+          <DrawerOverview
+            overview={drawerOverview}
+            isLoading={isOverviewLoading}
+            commonTags={commonTags}
+            onApplyFilter={handleApplyReturnFilter}
+            onSelectTag={handleSelectCommonTag}
+            onViewAllTags={openFilters}
+          />
+
+          <DrawerReturnSection
+            candidate={drawerReturnCandidate}
+            isLoading={isCandidateLoading}
+            error={drawerReturnError}
+            canExplore={canExploreDrawerReturn}
+            onOpenEntry={handleOpenDrawerReturnEntry}
+            onExplore={() => void handleExploreDrawerReturn()}
+            onRetry={() => void fetchCandidate()}
+          />
+
           <View style={styles.archiveHeaderRow}>
             <View style={styles.archiveHeaderContent}>
               <SectionHeader
@@ -351,7 +593,7 @@ export function DrawerDetailScreen() {
 
           <View style={styles.sortBar}>
             <Text style={[theme.typography.bodySm, styles.sortLabel]}>
-              {sortOrder === "desc" ? "Recently Added" : "Oldest First"}
+              {selectedSortLabel}
             </Text>
             <View style={styles.metaActions}>
               {hasActiveFilters ? (
@@ -371,12 +613,8 @@ export function DrawerDetailScreen() {
           ) : visibleEntries.length === 0 ? (
             <EmptyStateCard
               icon="pencil-outline"
-              title={hasActiveFilters ? "No matching entries" : "No entries yet"}
-              description={
-                hasActiveFilters
-                  ? "Try a different sort or tag filter to explore this drawer."
-                  : "Create your first entry in this drawer when you're ready"
-              }
+              title={hasActiveFilters ? emptyState.title : "No entries yet"}
+              description={emptyState.description}
               actionLabel={hasActiveFilters ? undefined : "Create First Entry"}
               onActionPress={hasActiveFilters ? undefined : handleCreateEntry}
               accessibilityActionLabel="Create your first entry in this drawer"
@@ -500,13 +738,37 @@ export function DrawerDetailScreen() {
 
           <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={[theme.typography.labelSm, styles.controlsLabel]}>
+              Explore
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipRow}
+            >
+              {DRAWER_FILTER_OPTIONS.map((option) => {
+                const isActive = draftFilter === option.value;
+                return (
+                  <FilterPill
+                    key={option.value}
+                    label={option.label}
+                    selected={isActive}
+                    onPress={() => {
+                      setDraftFilter(option.value);
+                      if (!getSortOptions(option.value).some((sort) => sort.value === draftSortOrder)) {
+                        setDraftSortOrder("newest");
+                      }
+                    }}
+                    accessibilityLabel={`Show ${option.label}`}
+                  />
+                );
+              })}
+            </ScrollView>
+
+            <Text style={[theme.typography.labelSm, styles.controlsLabel]}>
               Sort
             </Text>
             <View style={styles.chipRow}>
-              {[
-                { label: "Recently Added", value: "desc" as const },
-                { label: "Oldest First", value: "asc" as const },
-              ].map((option) => {
+              {getSortOptions(draftFilter).map((option) => {
                 const isActive = draftSortOrder === option.value;
                 return (
                   <FilterPill

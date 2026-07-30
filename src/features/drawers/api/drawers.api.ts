@@ -2,6 +2,7 @@ import { drawersService } from '@services';
 import {
   CreateDrawerRequest,
   UpdateDrawerRequest,
+  DrawerEntriesRequest,
   ApiError,
 } from '@types';
 
@@ -60,13 +61,20 @@ export const drawersApi = {
     }
   },
 
-  async getDrawerEntries(drawerId: string, userId: string, limit?: number, offset?: number) {
+  async getDrawerEntries(
+    drawerId: string,
+    userId: string,
+    limit?: number,
+    offset?: number,
+    request?: DrawerEntriesRequest,
+  ) {
     try {
       const result = await drawersService.getDrawerEntries(
         drawerId,
         userId,
         limit,
-        offset
+        offset,
+        request,
       );
       return {
         success: true,

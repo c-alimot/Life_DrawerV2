@@ -1,6 +1,8 @@
 import type {
   CreateLinkedReflectionRequest,
   Drawer,
+  DrawerCommonTag,
+  DrawerReturnOverview,
   EntryWithRelations,
   EntryViewRecord,
   ReturnPreferences,
@@ -12,6 +14,7 @@ import {
   HOME_RETURN_RESURFACE_COOLDOWN_DAYS,
   selectHomeReturnCandidate,
 } from "@features/return/basicReturnEntry";
+import { selectDrawerReturnCandidate } from "@features/return/drawerReturnCandidate";
 import { supabase } from "./client";
 import { drawersService } from "./drawers";
 import { entriesService } from "./entries";
@@ -24,6 +27,148 @@ const ENTRY_VIEW_DEDUPLICATION_WINDOW_MS = 5_000;
 const recentEntryViews = new Map<string, EntryViewRecord & { recordedAt: number }>();
 
 export const returnService = {
+  async getDrawerReturnOverview(drawerId: string): Promise<DrawerReturnOverview> {
+    const { data, error } = await supabase
+      .rpc("get_drawer_return_overview", { p_drawer_id: drawerId })
+      .single();
+
+    if (error || !data) {
+      throw error || new Error("Unable to load Drawer overview");
+    }
+
+    return {
+      entryCount: data.entry_count,
+      firstEntryAt: data.first_entry_at ?? undefined,
+      latestEntryAt: data.latest_entry_at ?? undefined,
+      savedForLaterCount: data.saved_for_later_count,
+      connectedReflectionCount: data.connected_reflection_count,
+      revisitedCount: data.revisited_count,
+    };
+  },
+
+  async getDrawerCommonTags(drawerId: string): Promise<DrawerCommonTag[]> {
+    const { data, error } = await supabase.rpc("get_drawer_common_tags", {
+      p_drawer_id: drawerId,
+      p_limit: 50,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return (data || []).map((tag) => ({
+      id: tag.tag_id,
+      name: tag.tag_name,
+      color: tag.tag_color ?? undefined,
+      entryCount: tag.entry_count,
+    }));
+  },
+
+  async getDrawerReturnCandidate(
+    drawerId: string,
+    userId: string,
+    preferences: Pick<ReturnPreferences, "returnFeaturesEnabled">,
+    excludedEntryIds: string[] = [],
+  ) {
+    if (!preferences.returnFeaturesEnabled) {
+      return null;
+    }
+
+    const { data: drawer, error: drawerError } = await supabase
+      .from("drawers")
+      .select("resurfacing_enabled")
+      .eq("id", drawerId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (drawerError) {
+      throw drawerError;
+    }
+
+    if (!drawer?.resurfacing_enabled) {
+      return null;
+    }
+
+    const { data: entryLinks, error: entryLinksError } = await supabase
+      .from("entry_drawers")
+      .select("entry_id")
+      .eq("drawer_id", drawerId)
+      .eq("user_id", userId)
+      .limit(HOME_RETURN_CANDIDATE_LIMIT);
+
+    if (entryLinksError) {
+      throw entryLinksError;
+    }
+
+    const entryIds = (entryLinks || []).map((entryLink) => entryLink.entry_id);
+    if (!entryIds.length) {
+      return null;
+    }
+
+    const now = new Date();
+    const minimumAgeTimestamp = new Date(
+      now.getTime() - HOME_RETURN_MINIMUM_AGE_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const recentViewTimestamp = new Date(
+      now.getTime() - HOME_RETURN_RECENT_VIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const resurfaceCooldownTimestamp = new Date(
+      now.getTime() - HOME_RETURN_RESURFACE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const { data: candidateRows, error: candidateError } = await supabase
+      .from("entries")
+      .select(
+        "id, user_id, title, content, mood, created_at, updated_at, parent_entry_id, reflection_type, last_viewed_at, revisit_count, saved_for_later, resurfacing_enabled, last_resurfaced_at, resurface_count, return_dismissed_until",
+      )
+      .in("id", entryIds)
+      .eq("user_id", userId)
+      .eq("resurfacing_enabled", true)
+      .lte("created_at", minimumAgeTimestamp)
+      .or(`last_viewed_at.is.null,last_viewed_at.lt.${recentViewTimestamp}`)
+      .or(`last_resurfaced_at.is.null,last_resurfaced_at.lt.${resurfaceCooldownTimestamp}`)
+      .or(`return_dismissed_until.is.null,return_dismissed_until.lte.${now.toISOString()}`)
+      .order("saved_for_later", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(HOME_RETURN_CANDIDATE_LIMIT);
+
+    if (candidateError) {
+      throw candidateError;
+    }
+
+    const rows = (candidateRows || []) as EntryRow[];
+    if (!rows.length) {
+      return null;
+    }
+
+    const candidateIds = rows.map((entry) => entry.id);
+    const { data: childReflections, error: childReflectionsError } = await supabase
+      .from("entries")
+      .select("parent_entry_id")
+      .eq("user_id", userId)
+      .in("parent_entry_id", candidateIds);
+
+    if (childReflectionsError) {
+      throw childReflectionsError;
+    }
+
+    const entries = await entriesService.hydrateEntries(userId, rows);
+    const childReflectionEntryIds = new Set(
+      (childReflections || [])
+        .map((reflection) => reflection.parent_entry_id)
+        .filter((entryId): entryId is string => Boolean(entryId)),
+    );
+
+    return selectDrawerReturnCandidate({
+      entries,
+      userId,
+      preferences,
+      childReflectionEntryIds,
+      excludedEntryIds: new Set(excludedEntryIds),
+      now,
+    });
+  },
+
   async getHomeReturnCandidate(
     userId: string,
     preferences: Pick<

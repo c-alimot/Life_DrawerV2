@@ -154,6 +154,54 @@ export interface HomeReturnCandidate {
   contextDescription: string;
 }
 
+export type DrawerReturnCandidateReason =
+  | "saved_for_later"
+  | "continuing_reflection"
+  | "least_recently_viewed"
+  | "collection";
+
+export interface DrawerReturnCandidate {
+  entry: EntryWithRelations;
+  reason: DrawerReturnCandidateReason;
+  contextLabel: string;
+  contextDescription: string;
+}
+
+export interface DrawerReturnOverview {
+  entryCount: number;
+  firstEntryAt?: string;
+  latestEntryAt?: string;
+  savedForLaterCount: number;
+  connectedReflectionCount: number;
+  revisitedCount: number;
+}
+
+export type DrawerEntryFilter =
+  | "all"
+  | "saved_for_later"
+  | "connected_reflections"
+  | "revisited"
+  | "not_revisited";
+
+export type DrawerEntrySort =
+  | "newest"
+  | "oldest"
+  | "least_recently_viewed"
+  | "most_recently_revisited";
+
+export interface DrawerEntriesRequest {
+  filter: DrawerEntryFilter;
+  sort: DrawerEntrySort;
+  tagId?: string | null;
+}
+
+export interface DrawerCommonTag {
+  id: string;
+  name: string;
+  color?: string;
+  entryCount: number;
+}
+
 export interface DrawerWithRelations extends Drawer {
   entries: Entry[];
   entryCount: number;

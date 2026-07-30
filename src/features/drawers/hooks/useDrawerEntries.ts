@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
 import { drawersApi } from '../api/drawers.api';
-import type { EntryWithRelations, ApiError } from '@types';
+import type { EntryWithRelations, ApiError, DrawerEntriesRequest } from '@types';
 
 export function useDrawerEntries(drawerId: string) {
   const { user } = useAuthStore();
@@ -12,7 +12,11 @@ export function useDrawerEntries(drawerId: string) {
   const [hasMore, setHasMore] = useState(false);
 
   const fetchEntries = useCallback(
-    async (limit: number = 20, offset: number = 0) => {
+    async (
+      request: DrawerEntriesRequest = { filter: "all", sort: "newest" },
+      limit: number = 20,
+      offset: number = 0,
+    ) => {
       if (!user) return;
 
       setIsLoading(true);
@@ -23,7 +27,8 @@ export function useDrawerEntries(drawerId: string) {
           drawerId,
           user.id,
           limit,
-          offset
+          offset,
+          request,
         );
 
         if (!result.success || !result.data) {

@@ -3,6 +3,7 @@ import {
   ApiError,
   CreateDrawerRequest,
   Drawer,
+  DrawerEntriesRequest,
   DrawerWithRelations,
   Entry,
   EntryWithRelations,
@@ -241,42 +242,56 @@ export const drawersService = {
     }
   },
 
-  async getDrawerEntries(drawerId: string, userId: string, limit = 20, offset = 0) {
+  async getDrawerEntries(
+    drawerId: string,
+    userId: string,
+    limit = 20,
+    offset = 0,
+    request: DrawerEntriesRequest = { filter: "all", sort: "newest" },
+  ) {
     try {
-      const { data: entryDrawersData, error: joinError } = await supabase
-        .from("entry_drawers")
-        .select("entry_id")
-        .eq("drawer_id", drawerId)
-        .eq("user_id", userId);
+      const { data: filteredEntryIds, error: filterError } = await supabase.rpc(
+        "get_drawer_filtered_entry_ids",
+        {
+          p_drawer_id: drawerId,
+          p_filter: request.filter,
+          p_sort: request.sort,
+          p_tag_id: request.tagId || null,
+          p_limit: limit,
+          p_offset: offset,
+        },
+      );
 
-      if (joinError) throw joinError;
+      if (filterError) throw filterError;
 
-      const entryIds = entryDrawersData?.map((row) => row.entry_id) || [];
+      const entryIds = (filteredEntryIds || []).map((row) => row.entry_id);
+      const total = filteredEntryIds?.[0]?.total_count || 0;
 
       if (!entryIds.length) {
         return {
           entries: [] as EntryWithRelations[],
-          total: 0,
+          total,
           hasMore: false,
         };
       }
 
-      const { data: entries, error: entriesError, count } = await supabase
+      const { data: entries, error: entriesError } = await supabase
         .from("entries")
-        .select("*", { count: "exact" })
+        .select("*")
         .in("id", entryIds)
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .range(offset, offset + limit - 1);
+        .eq("user_id", userId);
 
       if (entriesError) throw entriesError;
 
       const enrichedEntries = await entriesService.hydrateEntries(userId, (entries || []) as EntryRow[]);
+      const entriesById = new Map(enrichedEntries.map((entry) => [entry.id, entry]));
 
       return {
-        entries: enrichedEntries,
-        total: count || 0,
-        hasMore: (count || 0) > offset + limit,
+        entries: entryIds
+          .map((entryId) => entriesById.get(entryId))
+          .filter((entry): entry is EntryWithRelations => Boolean(entry)),
+        total,
+        hasMore: total > offset + limit,
       };
     } catch (error) {
       console.error("Get drawer entries error:", error);

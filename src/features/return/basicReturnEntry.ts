@@ -27,6 +27,14 @@ interface HomeReturnCandidateSelectionInput {
   now?: Date;
 }
 
+interface ReturnEntryEligibilityInput {
+  entries: EntryWithRelations[];
+  userId: string;
+  preferences: Pick<ReturnPreferences, "returnFeaturesEnabled">;
+  excludedEntryIds?: Set<string>;
+  now?: Date;
+}
+
 function getTimestamp(value?: string): number | null {
   if (!value) {
     return null;
@@ -134,30 +142,17 @@ export function selectHomeReturnCandidate({
     return null;
   }
 
-  const minimumAge = now.getTime() - HOME_RETURN_MINIMUM_AGE_DAYS * 24 * 60 * 60 * 1000;
-  const recentViewCutoff = now.getTime() - HOME_RETURN_RECENT_VIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  const resurfaceCooldownCutoff =
-    now.getTime() - HOME_RETURN_RESURFACE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+  const effectiveExcludedEntryIds = new Set(excludedEntryIds);
+  if (newestEntryId) {
+    effectiveExcludedEntryIds.add(newestEntryId);
+  }
 
-  const eligibleEntries = entries.filter((entry) => {
-    const createdAt = getTimestamp(entry.createdAt);
-    const lastViewedAt = getTimestamp(entry.lastViewedAt);
-    const lastResurfacedAt = getTimestamp(entry.lastResurfacedAt);
-    const dismissedUntil = getTimestamp(entry.returnDismissedUntil);
-
-    return (
-      entry.userId === userId &&
-      entry.id !== newestEntryId &&
-      !excludedEntryIds.has(entry.id) &&
-      createdAt !== null &&
-      createdAt <= minimumAge &&
-      (lastViewedAt === null || lastViewedAt < recentViewCutoff) &&
-      (lastResurfacedAt === null || lastResurfacedAt < resurfaceCooldownCutoff) &&
-      (dismissedUntil === null || dismissedUntil <= now.getTime()) &&
-      hasMeaningfulPreview(entry) &&
-      entry.drawers.every((drawer) => isEntryEligibleForReturn({ entry, drawer, preferences })) &&
-      isEntryEligibleForReturn({ entry, preferences })
-    );
+  const eligibleEntries = getEligibleReturnEntries({
+    entries,
+    userId,
+    preferences,
+    excludedEntryIds: effectiveExcludedEntryIds,
+    now,
   });
 
   const priorities: HomeReturnCandidateReason[] = [
@@ -194,4 +189,37 @@ export function selectHomeReturnCandidate({
   }
 
   return null;
+}
+
+export function getEligibleReturnEntries({
+  entries,
+  userId,
+  preferences,
+  excludedEntryIds = new Set<string>(),
+  now = new Date(),
+}: ReturnEntryEligibilityInput): EntryWithRelations[] {
+  const minimumAge = now.getTime() - HOME_RETURN_MINIMUM_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const recentViewCutoff = now.getTime() - HOME_RETURN_RECENT_VIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const resurfaceCooldownCutoff =
+    now.getTime() - HOME_RETURN_RESURFACE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+
+  return entries.filter((entry) => {
+    const createdAt = getTimestamp(entry.createdAt);
+    const lastViewedAt = getTimestamp(entry.lastViewedAt);
+    const lastResurfacedAt = getTimestamp(entry.lastResurfacedAt);
+    const dismissedUntil = getTimestamp(entry.returnDismissedUntil);
+
+    return (
+      entry.userId === userId &&
+      !excludedEntryIds.has(entry.id) &&
+      createdAt !== null &&
+      createdAt <= minimumAge &&
+      (lastViewedAt === null || lastViewedAt < recentViewCutoff) &&
+      (lastResurfacedAt === null || lastResurfacedAt < resurfaceCooldownCutoff) &&
+      (dismissedUntil === null || dismissedUntil <= now.getTime()) &&
+      hasMeaningfulPreview(entry) &&
+      entry.drawers.every((drawer) => isEntryEligibleForReturn({ entry, drawer, preferences })) &&
+      isEntryEligibleForReturn({ entry, preferences })
+    );
+  });
 }
