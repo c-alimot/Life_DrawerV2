@@ -2,13 +2,15 @@ import { AppBottomNav, AppPageHeader, SafeArea, Screen } from "@components/layou
 import { Button, Card, CardIconWrap, SectionHeader } from "@components/ui";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useEntries } from "@features/entries/hooks/useEntries";
+import { HomeReturnSection, useBasicReturnEntry } from "@features/return";
 import { useFocusEffect } from "@react-navigation/native";
 import { useAuthStore } from "@store";
 import { useTheme } from "@styles/theme";
 import { router } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -88,14 +90,50 @@ export function HomeScreen() {
   const theme = useTheme();
   const { user } = useAuthStore();
   const { entries, isLoading, fetchRecentEntries } = useEntries();
+  const {
+    candidate: returnCandidate,
+    isLoading: isReturnLoading,
+    error: returnError,
+    fetchHomeReturnCandidate,
+    recordHomeReturnDisplay,
+    dismissHomeReturnEntry,
+    disableHomeReturnEntry,
+  } = useBasicReturnEntry();
+  const [isReturnDismissed, setIsReturnDismissed] = useState(false);
+  const [excludedReturnEntryIds, setExcludedReturnEntryIds] = useState<string[]>([]);
+  const displayedReturnEntryIds = useRef(new Set<string>());
 
   useFocusEffect(
     useCallback(() => {
       if (user) {
         fetchRecentEntries(40);
+        const returnIsEnabled =
+          user.returnPreferences.returnFeaturesEnabled &&
+          user.returnPreferences.showReturnContentOnHome;
+
+        if (!returnIsEnabled || (!returnCandidate && !isReturnDismissed)) {
+          void fetchHomeReturnCandidate(excludedReturnEntryIds);
+        }
       }
-    }, [user, fetchRecentEntries]),
+    }, [
+      excludedReturnEntryIds,
+      fetchHomeReturnCandidate,
+      fetchRecentEntries,
+      isReturnDismissed,
+      returnCandidate,
+      user,
+    ]),
   );
+
+  useEffect(() => {
+    const entryId = returnCandidate?.entry.id;
+    if (!entryId || isReturnDismissed || displayedReturnEntryIds.current.has(entryId)) {
+      return;
+    }
+
+    displayedReturnEntryIds.current.add(entryId);
+    void recordHomeReturnDisplay(entryId);
+  }, [isReturnDismissed, recordHomeReturnDisplay, returnCandidate]);
 
   const recentlyUsedTags = useMemo(() => {
     const seen = new Set<string>();
@@ -126,6 +164,52 @@ export function HomeScreen() {
   const handleCreateFirstEntry = useCallback(() => {
     router.push("/create-entry");
   }, []);
+
+  const handleOpenReturnEntry = useCallback((entryId: string) => {
+    router.push(`/entry/${entryId}`);
+  }, []);
+
+  const handleDismissReturnEntry = useCallback(() => {
+    if (!returnCandidate) {
+      return;
+    }
+
+    void dismissHomeReturnEntry(returnCandidate.entry.id);
+    setIsReturnDismissed(true);
+  }, [dismissHomeReturnEntry, returnCandidate]);
+
+  const handleShowSomethingElse = useCallback(() => {
+    if (!returnCandidate) {
+      return;
+    }
+
+    const nextExcludedEntryIds = Array.from(
+      new Set([...excludedReturnEntryIds, returnCandidate.entry.id]),
+    );
+    setExcludedReturnEntryIds(nextExcludedEntryIds);
+    void fetchHomeReturnCandidate(nextExcludedEntryIds);
+  }, [excludedReturnEntryIds, fetchHomeReturnCandidate, returnCandidate]);
+
+  const handleDisableReturnEntry = useCallback(() => {
+    if (!returnCandidate) {
+      return;
+    }
+
+    Alert.alert(
+      "Stop returning this entry?",
+      "It will stay available in your collection, drawers, and search.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Do not bring it back",
+          style: "destructive",
+          onPress: () => {
+            void disableHomeReturnEntry(returnCandidate.entry.id);
+          },
+        },
+      ],
+    );
+  }, [disableHomeReturnEntry, returnCandidate]);
 
   const renderCardAccent = useCallback((cardKey: keyof typeof CARD_THEME_BY_KEY) => {
     const accentColor = CARD_THEME_BY_KEY[cardKey].accent;
@@ -236,6 +320,18 @@ export function HomeScreen() {
               <Text style={{ color: HOME_PRIMARY }}>one moment at a time.</Text>
             </Text>
 
+            {entries.length > 0 ? (
+              <Button
+                label="Write an entry"
+                onPress={handleCreateFirstEntry}
+                variant="primary"
+                size="md"
+                style={styles.captureEntryButton}
+                textStyle={styles.captureEntryButtonText}
+                accessibilityLabel="Write a new entry"
+              />
+            ) : null}
+
             {!isLoading && entries.length === 0 ? (
               <Card
                 style={styles.createFirstEntryCard}
@@ -329,6 +425,19 @@ export function HomeScreen() {
               })}
             </View>
 
+            {!isReturnDismissed ? (
+              <HomeReturnSection
+                candidate={returnCandidate}
+                isLoading={isReturnLoading}
+                error={returnError}
+                onOpenEntry={handleOpenReturnEntry}
+                onDismiss={handleDismissReturnEntry}
+                onShowSomethingElse={handleShowSomethingElse}
+                onDisableResurfacing={handleDisableReturnEntry}
+                onRetry={() => void fetchHomeReturnCandidate(excludedReturnEntryIds)}
+              />
+            ) : null}
+
             {recentlyUsedTags.length > 0 ? (
               <View style={styles.section}>
                 <SectionHeader
@@ -401,6 +510,19 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 28,
     fontWeight: "300",
+  },
+  captureEntryButton: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: "#556950",
+    marginTop: -8,
+    marginBottom: 24,
+    minHeight: 46,
+    paddingHorizontal: 20,
+  },
+  captureEntryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   createFirstEntryCard: {
     width: "100%",

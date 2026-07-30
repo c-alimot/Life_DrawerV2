@@ -72,7 +72,10 @@ export type Database = {
           parent_entry_id: string | null
           reflection_type: string | null
           last_viewed_at: string | null
+          last_resurfaced_at: string | null
           revisit_count: number
+          resurface_count: number
+          return_dismissed_until: string | null
           saved_for_later: boolean
           resurfacing_enabled: boolean
           title: string | null
@@ -92,7 +95,10 @@ export type Database = {
           parent_entry_id?: string | null
           reflection_type?: string | null
           last_viewed_at?: string | null
+          last_resurfaced_at?: string | null
           revisit_count?: number
+          resurface_count?: number
+          return_dismissed_until?: string | null
           saved_for_later?: boolean
           resurfacing_enabled?: boolean
           title?: string | null
@@ -112,7 +118,10 @@ export type Database = {
           parent_entry_id?: string | null
           reflection_type?: string | null
           last_viewed_at?: string | null
+          last_resurfaced_at?: string | null
           revisit_count?: number
+          resurface_count?: number
+          return_dismissed_until?: string | null
           saved_for_later?: boolean
           resurfacing_enabled?: boolean
           title?: string | null
@@ -354,6 +363,15 @@ export type Database = {
         Returns: {
           last_viewed_at: string
           revisit_count: number
+        }[]
+      }
+      record_home_return_display: {
+        Args: {
+          p_entry_id: string
+        }
+        Returns: {
+          last_resurfaced_at: string
+          resurface_count: number
         }[]
       }
     }

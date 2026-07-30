@@ -127,6 +127,9 @@ export interface Entry {
   revisitCount: number;
   savedForLater: boolean;
   resurfacingEnabled: boolean;
+  lastResurfacedAt?: string;
+  resurfaceCount: number;
+  returnDismissedUntil?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -135,6 +138,20 @@ export interface EntryWithRelations extends Entry {
   drawers: Drawer[];
   tags: Tag[];
   author?: Profile;
+}
+
+export type HomeReturnCandidateReason =
+  | "saved_for_later"
+  | "around_this_time"
+  | "continuing_reflection"
+  | "not_viewed_recently"
+  | "collection";
+
+export interface HomeReturnCandidate {
+  entry: EntryWithRelations;
+  reason: HomeReturnCandidateReason;
+  contextLabel: string;
+  contextDescription: string;
 }
 
 export interface DrawerWithRelations extends Drawer {

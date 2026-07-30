@@ -2,9 +2,48 @@ import { returnService } from "@services";
 import type {
   ApiError,
   CreateLinkedReflectionRequest,
+  ReturnPreferences,
 } from "@types";
 
 export const returnApi = {
+  async getHomeReturnCandidate(
+    userId: string,
+    preferences: Pick<
+      ReturnPreferences,
+      "returnFeaturesEnabled" | "showReturnContentOnHome" | "showOnThisDay"
+    >,
+    excludedEntryIds?: string[],
+  ) {
+    try {
+      const result = await returnService.getHomeReturnCandidate(
+        userId,
+        preferences,
+        excludedEntryIds,
+      );
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
+  async recordHomeReturnDisplay(entryId: string, userId: string) {
+    try {
+      const result = await returnService.recordHomeReturnDisplay(entryId, userId);
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
+  async dismissHomeReturnEntry(entryId: string, userId: string, dismissedUntil: string) {
+    try {
+      const result = await returnService.dismissHomeReturnEntry(entryId, userId, dismissedUntil);
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
   async createLinkedReflection(userId: string, request: CreateLinkedReflectionRequest) {
     try {
       const result = await returnService.createLinkedReflection(userId, request);

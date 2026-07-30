@@ -27,7 +27,10 @@ type EntryRow = {
   parent_entry_id: string | null;
   reflection_type: string | null;
   last_viewed_at: string | null;
+  last_resurfaced_at: string | null;
   revisit_count: number;
+  resurface_count: number;
+  return_dismissed_until: string | null;
   saved_for_later: boolean;
   resurfacing_enabled: boolean;
   created_at: string;
@@ -898,6 +901,9 @@ export const entriesService = {
       revisitCount: row.revisit_count,
       savedForLater: row.saved_for_later,
       resurfacingEnabled: row.resurfacing_enabled,
+      lastResurfacedAt: row.last_resurfaced_at ?? undefined,
+      resurfaceCount: row.resurface_count,
+      returnDismissedUntil: row.return_dismissed_until ?? undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

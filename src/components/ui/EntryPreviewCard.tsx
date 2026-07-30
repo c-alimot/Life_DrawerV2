@@ -13,6 +13,7 @@ interface EntryPreviewCardProps {
   showDate?: boolean;
   dateText?: string;
   showMeta?: boolean;
+  accessibilityLabel?: string;
 }
 
 export function EntryPreviewCard({
@@ -23,6 +24,7 @@ export function EntryPreviewCard({
   showDate = false,
   dateText,
   showMeta = false,
+  accessibilityLabel,
 }: EntryPreviewCardProps) {
   const theme = useTheme();
   const title = entry.title || "Untitled Entry";
@@ -44,7 +46,7 @@ export function EntryPreviewCard({
         style={styles.content}
         onPress={onPress}
         accessible
-        accessibilityLabel={`Entry: ${title}`}
+        accessibilityLabel={accessibilityLabel || `Entry: ${title}`}
       >
         <Text
           numberOfLines={1}

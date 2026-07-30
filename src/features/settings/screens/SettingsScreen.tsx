@@ -7,6 +7,7 @@ import { authApi } from "@features/auth/api/auth.api";
 import { useLogout } from "@features/auth/hooks/useLogout";
 import { useAuthStore } from "@store";
 import { useTheme } from "@styles/theme";
+import type { UpdateReturnPreferencesRequest } from "@types";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
@@ -37,6 +38,7 @@ const SETTINGS_PREFERENCES_KEY = "lifeDrawer.settings.preferences";
 type SettingsPanel =
   | "password"
   | "notifications"
+  | "return"
   | "privacy"
   | "storage"
   | "help"
@@ -75,6 +77,7 @@ export function SettingsScreen() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [activePanel, setActivePanel] = useState<SettingsPanel | null>(null);
   const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
+  const [isSavingReturnPreferences, setIsSavingReturnPreferences] = useState(false);
   const [localSettings, setLocalSettings] =
     useState<LocalSettingsPreferences>(DEFAULT_LOCAL_SETTINGS);
   const [hasLoadedLocalSettings, setHasLoadedLocalSettings] = useState(false);
@@ -93,6 +96,8 @@ export function SettingsScreen() {
       ? "Password & Security"
       : activePanel === "notifications"
         ? "Notifications"
+        : activePanel === "return"
+          ? "Return"
         : activePanel === "privacy"
           ? "Privacy"
           : activePanel === "storage"
@@ -228,6 +233,32 @@ export function SettingsScreen() {
     }
   }, [user?.email]);
 
+  const handleUpdateReturnPreferences = useCallback(async (
+    updates: UpdateReturnPreferencesRequest,
+  ) => {
+    if (!user) {
+      return;
+    }
+
+    setIsSavingReturnPreferences(true);
+
+    try {
+      const result = await authApi.updateReturnPreferences(user.id, updates);
+      if (!result.success || !result.data) {
+        throw result.error || new Error("Unable to update Return preferences");
+      }
+
+      setUser(result.data);
+    } catch (error) {
+      Alert.alert(
+        "Unable to update Return",
+        error instanceof Error ? error.message : "Please try again in a moment.",
+      );
+    } finally {
+      setIsSavingReturnPreferences(false);
+    }
+  }, [setUser, user]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -304,6 +335,11 @@ export function SettingsScreen() {
         title: "Notifications",
         subtitle: "Reminders and alerts",
         onPress: () => openPanel("notifications"),
+      },
+      {
+        title: "Return",
+        subtitle: "Choose what may reappear on Home",
+        onPress: () => openPanel("return"),
       },
       {
         title: "Privacy",
@@ -402,6 +438,74 @@ export function SettingsScreen() {
                 }
                 trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
                 thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (activePanel === "return") {
+      const returnPreferences = user?.returnPreferences;
+
+      return (
+        <View style={styles.panelBody}>
+          <Text style={[theme.typography.body, styles.panelCopy, { color: PAGE_MUTED }]}>
+            Return is optional. Your entries stay available in drawers and search whenever you pause it.
+          </Text>
+          <View style={styles.preferenceList}>
+            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
+              <View style={styles.preferenceTextBlock}>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Return content on Home</Text>
+                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
+                  Occasionally show an older entry on your Home page.
+                </Text>
+              </View>
+              <Switch
+                value={returnPreferences?.showReturnContentOnHome ?? false}
+                onValueChange={(value) =>
+                  void handleUpdateReturnPreferences({ showReturnContentOnHome: value })
+                }
+                disabled={isSavingReturnPreferences || !returnPreferences}
+                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Show Return content on Home"
+              />
+            </View>
+            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
+              <View style={styles.preferenceTextBlock}>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show entries from around this time</Text>
+                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
+                  Include entries written around the same time in previous months or years.
+                </Text>
+              </View>
+              <Switch
+                value={returnPreferences?.showOnThisDay ?? false}
+                onValueChange={(value) =>
+                  void handleUpdateReturnPreferences({ showOnThisDay: value })
+                }
+                disabled={isSavingReturnPreferences || !returnPreferences}
+                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Show entries from around this time"
+              />
+            </View>
+            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
+              <View style={styles.preferenceTextBlock}>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Pause all Return features</Text>
+                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
+                  Your entries will stay available in drawers and search.
+                </Text>
+              </View>
+              <Switch
+                value={!(returnPreferences?.returnFeaturesEnabled ?? true)}
+                onValueChange={(value) =>
+                  void handleUpdateReturnPreferences({ returnFeaturesEnabled: !value })
+                }
+                disabled={isSavingReturnPreferences || !returnPreferences}
+                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Pause all Return features"
               />
             </View>
           </View>
@@ -514,8 +618,10 @@ export function SettingsScreen() {
     activePanel,
     appVersion,
     handlePasswordReset,
+    handleUpdateReturnPreferences,
     isLoading,
     isSendingPasswordReset,
+    isSavingReturnPreferences,
     localSettings.dailyReminders,
     localSettings.weeklyReflection,
     logout,
@@ -523,6 +629,7 @@ export function SettingsScreen() {
     theme.typography.bodySm,
     theme.typography.labelSm,
     user?.email,
+    user?.returnPreferences,
   ]);
 
   return (
