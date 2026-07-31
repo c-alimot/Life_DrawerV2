@@ -287,6 +287,10 @@ export const entriesService = {
         query = query.lte("created_at", request.endDate);
       }
 
+      if (request?.savedForLaterOnly) {
+        query = query.eq("saved_for_later", true);
+      }
+
       query = query
         .order("created_at", { ascending: request?.sortOrder === "asc" })
         .range(request?.offset || 0, (request?.offset || 0) + (request?.limit || 20) - 1);

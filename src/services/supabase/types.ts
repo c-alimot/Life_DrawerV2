@@ -413,6 +413,108 @@ export type Database = {
           entry_count: number
         }[]
       }
+      get_insights_collection_overview: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          entry_count: number
+          drawer_count: number
+          first_entry_at: string | null
+          latest_entry_at: string | null
+          saved_for_later_count: number
+          connected_reflection_count: number
+          tag_count: number
+        }[]
+      }
+      get_insights_reflection_chains: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: {
+          root_entry_id: string
+          original_entry_at: string
+          latest_reflection_at: string
+          entry_count: number
+          title: string | null
+          preview: string
+          chain_count: number
+          connected_entry_count: number
+        }[]
+      }
+      get_insights_drawer_summaries: {
+        Args: {
+          p_limit?: number
+        }
+        Returns: {
+          drawer_id: string
+          drawer_name: string
+          drawer_color: string | null
+          drawer_icon: string | null
+          entry_count: number
+          first_entry_at: string | null
+          latest_entry_at: string | null
+          saved_for_later_count: number
+          connected_reflection_count: number
+          common_tags: string[]
+        }[]
+      }
+      get_insights_recurring_themes: {
+        Args: {
+          p_start_at?: string | null
+          p_limit?: number
+        }
+        Returns: {
+          tag_id: string
+          tag_name: string
+          tag_color: string | null
+          entry_count: number
+          drawer_count: number
+          first_entry_at: string
+          latest_entry_at: string
+          connected_reflection_count: number
+          drawer_ids: string[]
+          drawer_names: string[]
+          year_counts: string[]
+        }[]
+      }
+      get_insights_reflection_comparisons: {
+        Args: {
+          p_start_at?: string | null
+          p_limit?: number
+        }
+        Returns: {
+          root_entry_id: string
+          original_entry_at: string
+          original_preview: string
+          latest_entry_id: string
+          latest_reflection_at: string
+          latest_preview: string
+          latest_reflection_type: string | null
+          entry_count: number
+        }[]
+      }
+      get_insights_recently_returned: {
+        Args: {
+          p_start_at?: string | null
+          p_limit?: number
+        }
+        Returns: {
+          entry_id: string
+          title: string | null
+          preview: string
+          created_at: string
+          last_viewed_at: string
+          drawer_name: string | null
+          has_connected_reflection: boolean
+        }[]
+      }
+      get_insights_saved_for_later_summary: {
+        Args: {
+          p_start_at?: string | null
+        }
+        Returns: {
+          entry_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

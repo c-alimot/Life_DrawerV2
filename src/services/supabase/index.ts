@@ -4,4 +4,5 @@ export { entriesService } from './entries';
 export { drawersService } from './drawers';
 export { tagsService } from './tags';
 export { returnService } from './return';
+export { insightsService } from './insights';
 export type { Database } from './types';

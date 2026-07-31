@@ -37,8 +37,10 @@ const CANCEL_BUTTON_TEXT = "#5F6368";
 
 export function AllEntriesScreen() {
   const theme = useTheme();
-  const params = useLocalSearchParams<{ tagId?: string }>();
+  const params = useLocalSearchParams<{ tagId?: string; filter?: string }>();
   const initialTagId = Array.isArray(params.tagId) ? params.tagId[0] : params.tagId;
+  const filterValue = Array.isArray(params.filter) ? params.filter[0] : params.filter;
+  const initialSavedForLaterOnly = filterValue === "saved";
   const { entries, isLoading, total, fetchEntries } = useEntries();
   const { deleteEntry } = useDeleteEntry();
   const { drawers, fetchDrawers } = useDrawers();
@@ -47,6 +49,7 @@ export function AllEntriesScreen() {
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [selectedDrawerId, setSelectedDrawerId] = useState<string | null>(null);
   const [selectedTagId, setSelectedTagId] = useState<string | null>(initialTagId ?? null);
+  const [selectedSavedForLaterOnly, setSelectedSavedForLaterOnly] = useState(initialSavedForLaterOnly);
   const [draftSortOrder, setDraftSortOrder] = useState<"desc" | "asc">("desc");
   const [draftDrawerId, setDraftDrawerId] = useState<string | null>(null);
   const [draftTagId, setDraftTagId] = useState<string | null>(initialTagId ?? null);
@@ -65,6 +68,10 @@ export function AllEntriesScreen() {
   }, [initialTagId]);
 
   useEffect(() => {
+    setSelectedSavedForLaterOnly(initialSavedForLaterOnly);
+  }, [initialSavedForLaterOnly]);
+
+  useEffect(() => {
     fetchDrawers();
     fetchTags();
   }, [fetchDrawers, fetchTags]);
@@ -76,8 +83,9 @@ export function AllEntriesScreen() {
       sortOrder,
       drawerIds: selectedDrawerId ? [selectedDrawerId] : undefined,
       tagIds: selectedTagId ? [selectedTagId] : undefined,
+      savedForLaterOnly: selectedSavedForLaterOnly,
     }),
-    [selectedDrawerId, selectedTagId, sortOrder],
+    [selectedDrawerId, selectedSavedForLaterOnly, selectedTagId, sortOrder],
   );
 
   useEffect(() => {
@@ -137,6 +145,8 @@ export function AllEntriesScreen() {
     setDraftDrawerId(null);
     setDraftTagId(null);
     setDraftSortOrder("desc");
+    setSelectedSavedForLaterOnly(false);
+    router.setParams({ filter: "" });
   }, []);
 
   const openFilters = useCallback(() => {
@@ -202,7 +212,7 @@ export function AllEntriesScreen() {
   }, [deleteEntry, deleteTarget, fetchEntries, request]);
 
   const hasActiveFilters =
-    sortOrder !== "desc" || selectedDrawerId !== null || selectedTagId !== null;
+    sortOrder !== "desc" || selectedDrawerId !== null || selectedTagId !== null || selectedSavedForLaterOnly;
 
   if (isLoading && entries.length === 0) {
     return (
@@ -257,6 +267,15 @@ export function AllEntriesScreen() {
                   <MaterialCommunityIcons name="tune-variant" size={24} color={PAGE_PRIMARY} />
                 </TouchableOpacity>
               </View>
+
+              {selectedSavedForLaterOnly ? (
+                <View style={styles.activeSavedFilter}>
+                  <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>Showing Entries saved for later</Text>
+                  <TouchableOpacity onPress={handleClearFilters} accessible accessibilityLabel="Clear saved for later filter">
+                    <Text style={[theme.typography.bodySm, { color: PAGE_SECONDARY, fontWeight: "700" }]}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
 
               {entries.length === 0 ? (
                 <EmptyStateCard
@@ -571,6 +590,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 2,
+  },
+  activeSavedFilter: {
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: -4,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "#F8F6F2",
   },
   archiveHeaderContent: {
     flex: 1,

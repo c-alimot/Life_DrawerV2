@@ -202,6 +202,94 @@ export interface DrawerCommonTag {
   entryCount: number;
 }
 
+export interface InsightsCollectionOverview {
+  entryCount: number;
+  drawerCount: number;
+  firstEntryAt?: string;
+  latestEntryAt?: string;
+  savedForLaterCount: number;
+  connectedReflectionCount: number;
+  tagCount: number;
+}
+
+export interface ContinuingReflectionChain {
+  rootEntryId: string;
+  originalEntryAt: string;
+  latestReflectionAt: string;
+  entryCount: number;
+  title: string;
+  preview: string;
+}
+
+export interface ContinuingReflectionSummary {
+  chainCount: number;
+  connectedEntryCount: number;
+  chains: ContinuingReflectionChain[];
+}
+
+export interface DrawerInsightSummary {
+  drawerId: string;
+  drawerName: string;
+  drawerColor?: string;
+  drawerIcon?: string;
+  entryCount: number;
+  firstEntryAt?: string;
+  latestEntryAt?: string;
+  savedForLaterCount: number;
+  connectedReflectionCount: number;
+  commonTags: string[];
+}
+
+export type InsightsTimeRange = "all" | "six_months" | "year";
+
+export interface InsightThemeDrawer {
+  id: string;
+  name: string;
+}
+
+export interface InsightThemePeriod {
+  label: string;
+  entryCount: number;
+}
+
+export interface InsightTheme {
+  tagId: string;
+  name: string;
+  color?: string;
+  entryCount: number;
+  drawerCount: number;
+  firstEntryAt: string;
+  latestEntryAt: string;
+  connectedReflectionCount: number;
+  drawers: InsightThemeDrawer[];
+  periods: InsightThemePeriod[];
+}
+
+export interface InsightReflectionComparison {
+  rootEntryId: string;
+  originalEntryAt: string;
+  originalPreview: string;
+  latestEntryId: string;
+  latestReflectionAt: string;
+  latestPreview: string;
+  latestReflectionType?: ReflectionType;
+  entryCount: number;
+}
+
+export interface RecentlyReturnedEntry {
+  entryId: string;
+  title: string;
+  preview: string;
+  createdAt: string;
+  lastViewedAt: string;
+  drawerName?: string;
+  hasConnectedReflection: boolean;
+}
+
+export interface SavedForLaterInsightsSummary {
+  entryCount: number;
+}
+
 export interface DrawerWithRelations extends Drawer {
   entries: Entry[];
   entryCount: number;
@@ -274,6 +362,7 @@ export interface SearchEntriesRequest {
   tagIds?: string[];
   startDate?: string;
   endDate?: string;
+  savedForLaterOnly?: boolean;
   sortOrder?: "desc" | "asc";
   limit?: number;
   offset?: number;
