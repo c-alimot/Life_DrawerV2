@@ -1,15 +1,16 @@
 import { SafeArea, Screen } from "@components/layout";
 import {
-    Button,
-    EntryImageStrip,
-    EntryMediaToolbar,
-    type EntryMediaToolbarButton,
-    EntryMoodPickerModal,
-    EntrySelectionModal,
-    AppModalSheet,
+  AppModalSheet,
+  Button,
+  EntryImageStrip,
+  EntryOptionsCarousel,
+  type EntryOptionsCarouselButton,
+  type EntryOptionsCarouselHandle,
+  EntrySelectionModal,
+  EntryStatusPickerModal,
 } from "@components/ui";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
-import { MOOD_MAP } from "@constants/moods";
+import { getEntryStatusLabel } from "@constants/entryStatus";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useCreateDrawer } from "@features/drawers/hooks/useCreateDrawer";
 import { useDeleteDrawer } from "@features/drawers/hooks/useDeleteDrawer";
@@ -20,12 +21,12 @@ import { useDeleteTag } from "@features/tags/hooks/useDeleteTag";
 import { useTags } from "@features/tags/hooks/useTags";
 import { useUpdateTag } from "@features/tags/hooks/useUpdateTag";
 import { zodResolver } from "@hookform/resolvers/zod";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
-import type { MoodValue } from "@types";
+import type { EntryLocation, EntryStatus } from "@types";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +34,6 @@ import { Controller, useForm } from "react-hook-form";
 import {
     ActivityIndicator,
     Alert,
-    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -44,25 +44,11 @@ import {
 import { z } from "zod";
 import { useEditEntry } from "../hooks/useEditEntry";
 import { useEntryDetail } from "../hooks/useEntryDetail";
+import { validateEntryRequirements } from "../entryRequirements";
 
 const editEntrySchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  mood: z
-    .enum([
-      "happy",
-      "calm",
-      "inspired",
-      "grateful",
-      "anxious",
-      "stressed",
-      "angry",
-      "sad",
-      "tired",
-      "bored",
-      "meh",
-    ])
-    .optional(),
 });
 
 type EditEntryFormData = z.infer<typeof editEntrySchema>;
@@ -82,22 +68,17 @@ const ENTRY_CANCEL_BORDER = "#C9C4BB";
 const ENTRY_CANCEL_TEXT = "#5F6368";
 const ENTRY_PLACEHOLDER = "#8A8178";
 const ENTRY_TEXTBOX_BG = "#F8F6F2";
-const STARTER_DRAWER_HIDDEN_KEY = "life-drawer:starter-drawer-hidden";
-const STARTER_DRAWER_ID = "starter-drawer";
-const STARTER_DRAWER = {
-  id: STARTER_DRAWER_ID,
-  name: "My Life Drawer",
-  icon: "archive-outline",
-};
 
-const webStorage = {
-  async getItem(key: string) {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(key);
-  },
-};
-
-const starterDrawerStorage = Platform.OS === "web" ? webStorage : AsyncStorage;
+function formatLocationLabel(placemark: Location.LocationGeocodedAddress): string {
+  const locality =
+    placemark.city ||
+    placemark.district ||
+    placemark.subregion ||
+    placemark.name ||
+    placemark.street;
+  const area = placemark.region || placemark.country;
+  return [locality, area].filter(Boolean).join(", ");
+}
 
 export function EditEntryScreen() {
   const theme = useTheme();
@@ -143,7 +124,6 @@ export function EditEntryScreen() {
     defaultValues: {
       title: "",
       content: "",
-      mood: undefined,
     },
   });
 
@@ -153,22 +133,25 @@ export function EditEntryScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showDrawerModal, setShowDrawerModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
-  const [showMoodPicker, setShowMoodPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
-  const [isStarterDrawerHidden, setIsStarterDrawerHidden] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<EntryStatus | null>(null);
+  const [drawerRequirementError, setDrawerRequirementError] = useState<string | null>(null);
+  const [statusRequirementError, setStatusRequirementError] = useState<string | null>(null);
   const [newDrawerName, setNewDrawerName] = useState("");
   const [newTagName, setNewTagName] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<EntryLocation | null>(null);
   const [pendingImageRemoval, setPendingImageRemoval] = useState<
     { kind: "new"; index: number } | { kind: "existing"; uri: string } | null
   >(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const bypassExitPromptRef = useRef(false);
+  const optionsCarouselRef = useRef<EntryOptionsCarouselHandle>(null);
 
-  const mood = watch("mood");
   const titleValue = watch("title");
   const contentValue = watch("content");
   const neutralActionTextStyle = { color: ENTRY_CANCEL_TEXT, fontWeight: "700" } as const;
@@ -184,32 +167,16 @@ export function EditEntryScreen() {
     }, [fetchEntry, fetchDrawers, fetchTags]),
   );
 
-  useEffect(() => {
-    const loadStarterDrawerPreference = async () => {
-      try {
-        const value = await starterDrawerStorage.getItem(
-          STARTER_DRAWER_HIDDEN_KEY,
-        );
-        setIsStarterDrawerHidden(value === "true");
-      } catch {
-        setIsStarterDrawerHidden(false);
-      }
-    };
-
-    loadStarterDrawerPreference();
-  }, []);
-
   // Populate form with entry data
   useEffect(() => {
     if (entry) {
       setValue("title", entry.title);
       setValue("content", entry.content);
-      if (entry.mood) {
-        setValue("mood", entry.mood as MoodValue);
-      }
+      setSelectedStatus(entry.currentStatus);
       setSelectedDrawers(entry.drawers?.map((d) => d.id) || []);
       setSelectedTags(entry.tags?.map((t) => t.id) || []);
       setAudioUri(entry.audioUrl ?? null);
+      setSelectedLocation(entry.location ?? null);
       setNewImageUris([]);
       setRemovedImageUris([]);
     }
@@ -397,6 +364,33 @@ export function EditEntryScreen() {
     setAudioUri(null);
   }, []);
 
+  const requestLocation = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission denied", "Please enable location access in settings");
+        return;
+      }
+
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+      const placemarks = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const address = placemarks[0] ? formatLocationLabel(placemarks[0]) : "";
+
+      if (!address) {
+        Alert.alert(
+          "Location unavailable",
+          "Couldn't find your city or region. Please try again where GPS is stronger.",
+        );
+        return;
+      }
+
+      setSelectedLocation({ latitude, longitude, address });
+    } catch {
+      Alert.alert("Error", "Failed to get location");
+    }
+  }, []);
+
   // Drawer management
   const handleAddDrawer = useCallback(async () => {
     if (!newDrawerName.trim()) {
@@ -407,6 +401,7 @@ export function EditEntryScreen() {
     const result = await createDrawer({ name: newDrawerName });
     if (result) {
       setSelectedDrawers((prev) => [...prev, result.id]);
+      setDrawerRequirementError(null);
       setNewDrawerName("");
       fetchDrawers();
     }
@@ -418,6 +413,7 @@ export function EditEntryScreen() {
         ? prev.filter((id) => id !== drawerId)
         : [...prev, drawerId],
     );
+    setDrawerRequirementError(null);
   }, []);
 
   // Tag management
@@ -445,10 +441,6 @@ export function EditEntryScreen() {
 
   const handleEditDrawer = useCallback(
     async (drawerIdValue: string, name: string) => {
-      if (drawerIdValue === STARTER_DRAWER_ID) {
-        return false;
-      }
-
       const result = await updateDrawer(drawerIdValue, { name });
       if (!result) {
         return false;
@@ -462,10 +454,6 @@ export function EditEntryScreen() {
 
   const handleDeleteDrawer = useCallback(
     async (drawerIdValue: string) => {
-      if (drawerIdValue === STARTER_DRAWER_ID) {
-        return false;
-      }
-
       const success = await deleteDrawer(drawerIdValue);
       if (!success) {
         return false;
@@ -511,26 +499,45 @@ export function EditEntryScreen() {
       return;
     }
 
+    const requirements = validateEntryRequirements(selectedDrawers, selectedStatus);
+    if (requirements.summary) {
+      setDrawerRequirementError(requirements.drawerError);
+      setStatusRequirementError(requirements.statusError);
+      requestAnimationFrame(() => {
+        optionsCarouselRef.current?.revealOption(
+          requirements.drawerError ? "drawer" : "status",
+          true,
+        );
+      });
+      Alert.alert("Before saving", requirements.summary);
+      return;
+    }
+
     const persistedImages = entry.images.filter(
       (imageUri) => !removedImageUris.includes(imageUri),
     );
 
-    const result = await updateEntry({
-      title: data.title,
-      content: data.content,
-      mood: data.mood,
-      drawerIds: selectedDrawers.filter((id) => id !== STARTER_DRAWER_ID),
-      tagIds: selectedTags,
-      imageUris: [...persistedImages, ...newImageUris],
-      audioUrl: audioUri || null,
-      location: entry.location || null,
-      occurredAt: entry.occurredAt || null,
-      parentEntryId: entry.parentEntryId,
-      reflectionType: entry.reflectionType,
-    });
+    const statusChange = selectedStatus && selectedStatus !== entry.currentStatus
+      ? { status: selectedStatus, isInitial: entry.currentStatus === null }
+      : undefined;
+    const result = await updateEntry(
+      {
+        title: data.title,
+        content: data.content,
+        drawerIds: selectedDrawers,
+        tagIds: selectedTags,
+        imageUris: [...persistedImages, ...newImageUris],
+        audioUrl: audioUri || null,
+        location: selectedLocation || null,
+        occurredAt: entry.occurredAt || null,
+        parentEntryId: entry.parentEntryId,
+        reflectionType: entry.reflectionType,
+      },
+      statusChange,
+    );
 
     if (result) {
-      Alert.alert("Success", "Entry updated successfully");
+      Alert.alert("Entry saved.");
       bypassExitPromptRef.current = true;
       if (openedFromSearch) {
         router.replace("/search");
@@ -570,19 +577,21 @@ export function EditEntryScreen() {
     return (
       (titleValue || "") !== entry.title ||
       (contentValue || "") !== entry.content ||
-      (mood || undefined) !== (entry.mood || undefined) ||
+      selectedStatus !== entry.currentStatus ||
       !arraysEqual(selectedDrawers, baseDrawerIds) ||
       !arraysEqual(selectedTags, baseTagIds) ||
       newImageUris.length > 0 ||
       removedImageUris.length > 0 ||
-      (audioUri || null) !== (entry.audioUrl || null)
+      (audioUri || null) !== (entry.audioUrl || null) ||
+      JSON.stringify(selectedLocation) !== JSON.stringify(entry.location || null)
     );
   }, [
     arraysEqual,
     audioUri,
     contentValue,
     entry,
-    mood,
+    selectedStatus,
+    selectedLocation,
     newImageUris.length,
     removedImageUris.length,
     selectedDrawers,
@@ -642,16 +651,8 @@ export function EditEntryScreen() {
   const selectedDrawerPreview = drawers
     .filter((drawer) => selectedDrawers.includes(drawer.id))
     .map((drawer) => ({ id: drawer.id, name: drawer.name, icon: drawer.icon }));
-  const starterDrawerPreview = selectedDrawers.includes(STARTER_DRAWER_ID)
-    ? [STARTER_DRAWER]
-    : [];
-  const displayDrawerPreview = [
-    ...starterDrawerPreview,
-    ...selectedDrawerPreview,
-  ];
-  const selectableDrawers = isStarterDrawerHidden
-    ? drawers
-    : [{ ...STARTER_DRAWER, isManageable: false }, ...drawers];
+  const displayDrawerPreview = selectedDrawerPreview;
+  const selectableDrawers = drawers;
   const selectedTagPreview = tags
     .filter((tag) => selectedTags.includes(tag.id))
     .map((tag) => ({ id: tag.id, name: tag.name }));
@@ -667,29 +668,39 @@ export function EditEntryScreen() {
   const renderToolbarItem = (icon: ReactNode, label: string) => (
     <View style={styles.toolbarItemContent}>
       {icon}
-      <Text style={styles.toolbarItemLabel}>{label}</Text>
+      <Text numberOfLines={2} style={styles.toolbarItemLabel}>{label}</Text>
     </View>
   );
   const resolveDrawerIcon = useCallback((icon: string | undefined | null) => {
     if (!icon) return "archive-outline";
     return /^[a-z0-9-]+$/i.test(icon) ? icon : "archive-outline";
   }, []);
-  const toolbarButtons: EntryMediaToolbarButton[] = [
+  const toolbarButtons: EntryOptionsCarouselButton[] = [
     {
-      key: "drawers",
+      key: "drawer",
       borderColor:
-        selectedDrawers.length > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
+        drawerRequirementError
+          ? ENTRY_DANGER
+          : selectedDrawers.length > 0
+            ? ENTRY_SECONDARY
+            : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: () => setShowDrawerModal(true),
-      accessibilityLabel: "Manage drawers",
-      accessibilityHint: `${selectedDrawers.length} drawers selected`,
+      required: true,
+      selected: selectedDrawers.length > 0,
+      accessibilityLabel: "Choose a Drawer",
+      accessibilityHint: drawerRequirementError || `${selectedDrawers.length} drawers selected`,
       content: renderToolbarItem(
         <MaterialCommunityIcons
           name="archive-outline"
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Drawer",
+        selectedDrawers.length === 1
+          ? sanitizeEntryPreviewLabel(selectedDrawerPreview[0]?.name || "Drawer")
+          : selectedDrawers.length > 1
+            ? `${selectedDrawers.length} Drawers`
+            : "Choose Drawer",
       ),
     },
     {
@@ -698,6 +709,7 @@ export function EditEntryScreen() {
         selectedTags.length > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: () => setShowTagModal(true),
+      selected: selectedTags.length > 0,
       accessibilityLabel: "Manage tags",
       accessibilityHint: `${selectedTags.length} tags selected`,
       content: renderToolbarItem(
@@ -706,15 +718,38 @@ export function EditEntryScreen() {
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Tags",
+        selectedTags.length ? `${selectedTags.length} Tags` : "Add Tags",
       ),
     },
     {
-      key: "images",
+      key: "status",
+      borderColor: statusRequirementError
+        ? ENTRY_DANGER
+        : selectedStatus
+          ? ENTRY_SECONDARY
+          : ENTRY_ACCENT,
+      backgroundColor: ENTRY_TEXTBOX_BG,
+      onPress: () => setShowStatusPicker(true),
+      required: true,
+      selected: Boolean(selectedStatus),
+      accessibilityLabel: "Set Status",
+      accessibilityHint: statusRequirementError || (selectedStatus ? `Status selected: ${selectedStatus.replaceAll("_", " ")}` : "Choose where this stands"),
+      content: renderToolbarItem(
+        <MaterialCommunityIcons
+          name="progress-check"
+          size={28}
+          color={ENTRY_SECONDARY}
+        />,
+        selectedStatus ? getEntryStatusLabel(selectedStatus) : "Set Status",
+      ),
+    },
+    {
+      key: "image",
       borderColor: totalImages > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: pickImages,
       disabled: totalImages >= MAX_IMAGES,
+      selected: totalImages > 0,
       accessibilityLabel: "Add images",
       accessibilityHint: `${totalImages}/${MAX_IMAGES} images`,
       content: renderToolbarItem(
@@ -723,53 +758,33 @@ export function EditEntryScreen() {
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Image",
+        totalImages === 1 ? "1 Image" : totalImages ? `${totalImages} Images` : "Add Image",
       ),
     },
     {
-      key: "audio",
-      borderColor:
-        isRecording || audioUri ? ENTRY_SECONDARY : ENTRY_ACCENT,
+      key: "voice-memo",
+      borderColor: isRecording || audioUri ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
-      onPress: isRecording
-        ? stopRecording
-        : audioUri
-          ? playAudio
-          : startRecording,
-      accessibilityLabel: isRecording
-        ? "Stop recording"
-        : audioUri
-          ? "Play voice memo"
-          : "Record voice memo",
+      onPress: isRecording ? stopRecording : audioUri ? playAudio : startRecording,
+      selected: Boolean(isRecording || audioUri),
+      accessibilityLabel: isRecording ? "Stop recording" : audioUri ? "Play voice memo" : "Record voice memo",
+      accessibilityHint: isRecording ? "Recording in progress" : audioUri ? "Voice memo added" : undefined,
       content: renderToolbarItem(
-        <MaterialCommunityIcons
-          name="mic"
-          size={28}
-          color={ENTRY_SECONDARY}
-        />,
-        "Voice Memo",
+        <MaterialCommunityIcons name="mic" size={28} color={ENTRY_SECONDARY} />,
+        isRecording ? "Recording…" : audioUri ? "Voice Added" : "Voice Memo",
       ),
     },
     {
-      key: "mood",
-      borderColor: mood ? ENTRY_SECONDARY : ENTRY_ACCENT,
+      key: "location",
+      borderColor: selectedLocation ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
-      onPress: () => setShowMoodPicker(true),
-      accessibilityLabel: "Change mood",
-      accessibilityHint: mood
-        ? `Mood: ${MOOD_MAP[mood]?.label}`
-        : "Select a mood",
+      onPress: requestLocation,
+      selected: Boolean(selectedLocation),
+      accessibilityLabel: "Add location",
+      accessibilityHint: selectedLocation?.address || "Add an optional location",
       content: renderToolbarItem(
-        mood ? (
-          <Text style={styles.toolbarMoodIcon}>{MOOD_MAP[mood]?.emoji}</Text>
-        ) : (
-          <MaterialCommunityIcons
-            name="emoticon-happy-outline"
-            size={28}
-            color={ENTRY_SECONDARY}
-          />
-        ),
-        "Mood",
+        <MaterialCommunityIcons name="map-marker-outline" size={28} color={ENTRY_SECONDARY} />,
+        selectedLocation?.address || "Add Location",
       ),
     },
   ];
@@ -887,14 +902,31 @@ export function EditEntryScreen() {
             </View>
           </View>
 
-          <EntryMediaToolbar
+          <EntryOptionsCarousel
+            ref={optionsCarouselRef}
             buttons={toolbarButtons}
             containerStyle={styles.toolbar}
             buttonStyle={styles.toolbarButton}
+            surfaceColor={ENTRY_BACKGROUND}
           />
 
+          {drawerRequirementError || statusRequirementError ? (
+            <View accessibilityLiveRegion="polite">
+              {drawerRequirementError ? (
+                <Text style={[theme.typography.bodySm, styles.requirementError]}>
+                  {drawerRequirementError}
+                </Text>
+              ) : null}
+              {statusRequirementError ? (
+                <Text style={[theme.typography.bodySm, styles.requirementError]}>
+                  {statusRequirementError}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {isRecording ? (
-            <View style={styles.recordingStatusRow}>
+            <View accessibilityLiveRegion="polite" style={styles.recordingStatusRow}>
               <View style={styles.recordingStatusDot} />
               <Text style={styles.recordingStatusText}>Recording voice memo...</Text>
             </View>
@@ -1055,7 +1087,7 @@ export function EditEntryScreen() {
           items={selectableDrawers.map((drawer) => ({
             id: drawer.id,
             name: drawer.name,
-            isManageable: "isManageable" in drawer ? drawer.isManageable : true,
+            isManageable: true,
           }))}
           selectedIds={selectedDrawers}
           onToggle={toggleDrawer}
@@ -1107,11 +1139,15 @@ export function EditEntryScreen() {
           onDeleteItem={handleDeleteTag}
         />
 
-        <EntryMoodPickerModal
-          visible={showMoodPicker}
-          selectedMood={mood}
-          onSelectMood={(moodValue) => setValue("mood", moodValue)}
-          onClose={() => setShowMoodPicker(false)}
+        <EntryStatusPickerModal
+          visible={showStatusPicker}
+          selectedStatus={selectedStatus}
+          onSelectStatus={(status) => {
+            setSelectedStatus(status);
+            setStatusRequirementError(null);
+            setShowStatusPicker(false);
+          }}
+          onClose={() => setShowStatusPicker(false)}
           backgroundColor={entryPalette.background}
           textColor={entryPalette.text}
           borderColor={entryPalette.border}
@@ -1257,22 +1293,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   toolbar: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 14,
     marginTop: 4,
   },
   toolbarButton: {
-    width: "17.6%",
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: ENTRY_TEXTBOX_BG,
-    borderColor: ENTRY_ACCENT,
-    padding: 8,
   },
   toolbarItemContent: {
     alignItems: "center",
@@ -1286,8 +1309,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  toolbarMoodIcon: {
-    fontSize: 24,
+  requirementError: {
+    color: ENTRY_DANGER_DARK,
+    marginBottom: 8,
   },
   recordingStatusRow: {
     flexDirection: "row",

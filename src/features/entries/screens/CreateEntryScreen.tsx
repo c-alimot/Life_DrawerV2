@@ -1,16 +1,16 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeArea, Screen } from "@components/layout";
 import {
   Button,
   EntryImageStrip,
-  EntryMediaToolbar,
-  type EntryMediaToolbarButton,
-  EntryMoodPickerModal,
+  EntryOptionsCarousel,
+  type EntryOptionsCarouselButton,
+  type EntryOptionsCarouselHandle,
+  EntryStatusPickerModal,
   AppModalSheet,
   EntrySelectionModal,
 } from "@components/ui";
-import { MOOD_MAP } from "@constants/mood";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
+import { getEntryStatusLabel } from "@constants/entryStatus";
 import { useCreateDrawer } from "@features/drawers/hooks/useCreateDrawer";
 import { useDeleteDrawer } from "@features/drawers/hooks/useDeleteDrawer";
 import { useDrawers } from "@features/drawers/hooks/useDrawers";
@@ -25,7 +25,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
 import { entriesApi } from "../api/entries.api";
 import { useAuthStore } from "@store";
-import type { EntryWithRelations, ReflectionType } from "@types";
+import type { EntryStatus, EntryWithRelations, ReflectionType } from "@types";
 import { Audio } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -35,7 +35,6 @@ import type { ReactNode } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   Alert,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -45,25 +44,11 @@ import {
 } from "react-native";
 import { z } from "zod";
 import { useCreateEntryWithMedia } from "../hooks/useCreateEntryWithMedia";
+import { validateEntryRequirements } from "../entryRequirements";
 
 const entrySchema = z.object({
   title: z.string().min(1, "Title is required"),
   content: z.string().min(1, "Content is required"),
-  mood: z
-    .enum([
-      "happy",
-      "calm",
-      "inspired",
-      "grateful",
-      "anxious",
-      "stressed",
-      "angry",
-      "sad",
-      "tired",
-      "bored",
-      "meh",
-    ])
-    .optional(),
 });
 
 type EntryFormData = z.infer<typeof entrySchema>;
@@ -83,13 +68,6 @@ const ENTRY_CANCEL_BORDER = "#C9C4BB";
 const ENTRY_CANCEL_TEXT = "#5F6368";
 const ENTRY_PLACEHOLDER = "#8A8178";
 const ENTRY_TEXTBOX_BG = "#F8F6F2";
-const STARTER_DRAWER_HIDDEN_KEY = "life-drawer:starter-drawer-hidden";
-const STARTER_DRAWER_ID = "starter-drawer";
-const STARTER_DRAWER = {
-  id: STARTER_DRAWER_ID,
-  name: "My Life Drawer",
-  icon: "archive-outline",
-};
 
 const REFLECTION_TYPE_OPTIONS: {
   value: ReflectionType;
@@ -109,15 +87,6 @@ const REFLECTION_PROMPTS = [
   "What would you tell your past self?",
   "Is there anything you understand differently now?",
 ] as const;
-
-const webStorage = {
-  async getItem(key: string) {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(key);
-  },
-};
-
-const starterDrawerStorage = Platform.OS === "web" ? webStorage : AsyncStorage;
 
 interface SelectedMedia {
   imageUris: string[];
@@ -225,7 +194,6 @@ export function CreateEntryScreen() {
     control,
     handleSubmit,
     formState: { errors },
-    setValue,
     watch,
     reset,
   } = useForm<EntryFormData>({
@@ -233,7 +201,6 @@ export function CreateEntryScreen() {
     defaultValues: {
       title: "",
       content: "",
-      mood: undefined,
     },
   });
 
@@ -250,13 +217,14 @@ export function CreateEntryScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [showDrawerModal, setShowDrawerModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
-  const [showMoodPicker, setShowMoodPicker] = useState(false);
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showExitPrompt, setShowExitPrompt] = useState(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [isStarterDrawerHidden, setIsStarterDrawerHidden] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<EntryStatus | null>(null);
+  const [drawerRequirementError, setDrawerRequirementError] = useState<string | null>(null);
+  const [statusRequirementError, setStatusRequirementError] = useState<string | null>(null);
   const [newDrawerName, setNewDrawerName] = useState("");
   const [newTagName, setNewTagName] = useState("");
-  const [locationText, setLocationText] = useState("");
   const [pendingImageRemoveIndex, setPendingImageRemoveIndex] = useState<number | null>(null);
   const [parentEntry, setParentEntry] = useState<EntryWithRelations | null>(null);
   const [isParentLoading, setIsParentLoading] = useState(isConnectedReflection);
@@ -271,8 +239,8 @@ export function CreateEntryScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const bypassExitPromptRef = useRef(false);
+  const optionsCarouselRef = useRef<EntryOptionsCarouselHandle>(null);
 
-  const mood = watch("mood");
   const titleValue = watch("title");
   const contentValue = watch("content");
   const neutralActionTextStyle = { color: ENTRY_CANCEL_TEXT, fontWeight: "700" } as const;
@@ -305,16 +273,6 @@ export function CreateEntryScreen() {
   }, [loadParentEntry]);
 
   useEffect(() => {
-    const loadStarterDrawerPreference = async () => {
-      try {
-        const value = await starterDrawerStorage.getItem(STARTER_DRAWER_HIDDEN_KEY);
-        setIsStarterDrawerHidden(value === "true");
-      } catch {
-        setIsStarterDrawerHidden(false);
-      }
-    };
-
-    loadStarterDrawerPreference();
     fetchDrawers();
     fetchTags();
 
@@ -544,7 +502,6 @@ export function CreateEntryScreen() {
         location: { latitude, longitude, address },
       }));
 
-      setLocationText(address);
     } catch {
       Alert.alert("Error", "Failed to get location");
     }
@@ -555,7 +512,6 @@ export function CreateEntryScreen() {
       ...prev,
       location: null,
     }));
-    setLocationText("");
   }, []);
 
   const handleAddDrawer = useCallback(async () => {
@@ -570,6 +526,7 @@ export function CreateEntryScreen() {
       setSelectedDrawers((prev) =>
         prev.includes(result.id) ? prev : [...prev, result.id]
       );
+      setDrawerRequirementError(null);
       setNewDrawerName("");
       fetchDrawers();
     }
@@ -581,6 +538,7 @@ export function CreateEntryScreen() {
         ? prev.filter((id) => id !== drawerIdValue)
         : [...prev, drawerIdValue]
     );
+    setDrawerRequirementError(null);
   }, []);
 
   const handleAddTag = useCallback(async () => {
@@ -610,10 +568,6 @@ export function CreateEntryScreen() {
 
   const handleEditDrawer = useCallback(
     async (drawerIdValue: string, name: string) => {
-      if (drawerIdValue === STARTER_DRAWER_ID) {
-        return false;
-      }
-
       const result = await updateDrawer(drawerIdValue, { name });
       if (!result) {
         return false;
@@ -627,10 +581,6 @@ export function CreateEntryScreen() {
 
   const handleDeleteDrawer = useCallback(
     async (drawerIdValue: string) => {
-      if (drawerIdValue === STARTER_DRAWER_ID) {
-        return false;
-      }
-
       const success = await deleteDrawer(drawerIdValue);
       if (!success) {
         return false;
@@ -680,11 +630,25 @@ export function CreateEntryScreen() {
       return;
     }
 
+    const requirements = validateEntryRequirements(selectedDrawers, selectedStatus);
+    if (requirements.summary) {
+      setDrawerRequirementError(requirements.drawerError);
+      setStatusRequirementError(requirements.statusError);
+      requestAnimationFrame(() => {
+        optionsCarouselRef.current?.revealOption(
+          requirements.drawerError ? "drawer" : "status",
+          true,
+        );
+      });
+      Alert.alert("Before saving", requirements.summary);
+      return;
+    }
+
     const entry = await createEntry({
       title: data.title,
       content: data.content,
-      mood: data.mood,
-      drawerIds: selectedDrawers.filter((id) => id !== STARTER_DRAWER_ID),
+      currentStatus: selectedStatus,
+      drawerIds: selectedDrawers,
       tagIds: selectedTags,
       imageUris: selectedMedia.imageUris,
       audioUri: selectedMedia.audioUri || undefined,
@@ -706,7 +670,7 @@ export function CreateEntryScreen() {
           },
         ]);
       } else {
-        Alert.alert("Success", "Entry created successfully");
+        Alert.alert("Entry saved.");
         router.back();
       }
     } else {
@@ -735,7 +699,7 @@ export function CreateEntryScreen() {
     return (
       Boolean(titleValue?.trim()) ||
       Boolean(contentValue?.trim()) ||
-      Boolean(mood) ||
+      Boolean(selectedStatus) ||
       !arraysEqual(selectedDrawers, initialSelectedDrawers) ||
       selectedTags.length > 0 ||
       selectedMedia.imageUris.length > 0 ||
@@ -746,7 +710,7 @@ export function CreateEntryScreen() {
     arraysEqual,
     contentValue,
     initialSelectedDrawers,
-    mood,
+    selectedStatus,
     selectedDrawers,
     selectedMedia.audioUri,
     selectedMedia.imageUris.length,
@@ -768,7 +732,6 @@ export function CreateEntryScreen() {
     reset({
       title: "",
       content: "",
-      mood: undefined,
     });
     setSelectedMedia({
       imageUris: [],
@@ -777,13 +740,15 @@ export function CreateEntryScreen() {
     });
     setSelectedDrawers(initialDrawerId ? [initialDrawerId] : []);
     setSelectedTags([]);
-    setLocationText("");
+    setSelectedStatus(null);
+    setDrawerRequirementError(null);
+    setStatusRequirementError(null);
     setNewDrawerName("");
     setNewTagName("");
     setPendingImageRemoveIndex(null);
     setShowDrawerModal(false);
     setShowTagModal(false);
-    setShowMoodPicker(false);
+    setShowStatusPicker(false);
     setShowExitPrompt(false);
     handleBack();
   }, [handleBack, initialDrawerId, reset]);
@@ -820,13 +785,8 @@ export function CreateEntryScreen() {
   const selectedDrawerPreview = drawers
     .filter((drawer) => selectedDrawers.includes(drawer.id))
     .map((drawer) => ({ id: drawer.id, name: drawer.name, icon: drawer.icon }));
-  const starterDrawerPreview = selectedDrawers.includes(STARTER_DRAWER_ID)
-    ? [STARTER_DRAWER]
-    : [];
-  const displayDrawerPreview = [...starterDrawerPreview, ...selectedDrawerPreview];
-  const selectableDrawers = isStarterDrawerHidden
-    ? drawers
-    : [{ ...STARTER_DRAWER, isManageable: false }, ...drawers];
+  const displayDrawerPreview = selectedDrawerPreview;
+  const selectableDrawers = drawers;
   const selectedTagPreview = tags
     .filter((tag) => selectedTags.includes(tag.id))
     .map((tag) => ({ id: tag.id, name: tag.name }));
@@ -846,7 +806,7 @@ export function CreateEntryScreen() {
   ) => (
     <View style={styles.toolbarItemContent}>
       {icon}
-      <Text style={styles.toolbarItemLabel}>{label}</Text>
+      <Text numberOfLines={2} style={styles.toolbarItemLabel}>{label}</Text>
     </View>
   );
   const parentEntryDateLabel = useMemo(() => {
@@ -864,22 +824,32 @@ export function CreateEntryScreen() {
     return /^[a-z0-9-]+$/i.test(icon) ? icon : "archive-outline";
   }, []);
 
-  const toolbarButtons: EntryMediaToolbarButton[] = [
+  const toolbarButtons: EntryOptionsCarouselButton[] = [
     {
-      key: "drawers",
+      key: "drawer",
       borderColor:
-        selectedDrawers.length > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
+        drawerRequirementError
+          ? ENTRY_DANGER
+          : selectedDrawers.length > 0
+            ? ENTRY_SECONDARY
+            : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: () => setShowDrawerModal(true),
-      accessibilityLabel: "Add to drawers",
-      accessibilityHint: `${selectedDrawers.length} drawers selected`,
+      required: true,
+      selected: selectedDrawers.length > 0,
+      accessibilityLabel: "Choose a Drawer, required",
+      accessibilityHint: drawerRequirementError || `${selectedDrawers.length} drawers selected`,
       content: renderToolbarItem(
         <MaterialCommunityIcons
           name="archive-outline"
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Drawer",
+        selectedDrawers.length === 1
+          ? sanitizeEntryPreviewLabel(selectedDrawerPreview[0]?.name || "Drawer")
+          : selectedDrawers.length > 1
+            ? `${selectedDrawers.length} Drawers`
+            : "Choose Drawer",
       ),
     },
     {
@@ -887,6 +857,7 @@ export function CreateEntryScreen() {
       borderColor: selectedTags.length > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: () => setShowTagModal(true),
+      selected: selectedTags.length > 0,
       accessibilityLabel: "Add tags",
       accessibilityHint: `${selectedTags.length} tags selected`,
       content: renderToolbarItem(
@@ -895,15 +866,34 @@ export function CreateEntryScreen() {
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Tags",
+        selectedTags.length ? `${selectedTags.length} Tags` : "Add Tags",
       ),
     },
     {
-      key: "images",
+      key: "status",
+      borderColor: statusRequirementError
+        ? ENTRY_DANGER
+        : selectedStatus
+          ? ENTRY_SECONDARY
+          : ENTRY_ACCENT,
+      backgroundColor: ENTRY_TEXTBOX_BG,
+      onPress: () => setShowStatusPicker(true),
+      required: true,
+      selected: Boolean(selectedStatus),
+      accessibilityLabel: "Set Status, required",
+      accessibilityHint: statusRequirementError || (selectedStatus ? `Status selected: ${selectedStatus.replaceAll("_", " ")}` : "Choose where this stands"),
+      content: renderToolbarItem(
+        <MaterialCommunityIcons name="progress-check" size={28} color={ENTRY_SECONDARY} />,
+        selectedStatus ? getEntryStatusLabel(selectedStatus) : "Set Status",
+      ),
+    },
+    {
+      key: "image",
       borderColor:
         selectedMedia.imageUris.length > 0 ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
       onPress: pickImages,
+      selected: selectedMedia.imageUris.length > 0,
       accessibilityLabel: "Add images",
       accessibilityHint: `${selectedMedia.imageUris.length}/${MAX_IMAGES} images`,
       content: renderToolbarItem(
@@ -912,43 +902,34 @@ export function CreateEntryScreen() {
           size={28}
           color={ENTRY_SECONDARY}
         />,
-        "Image",
+        selectedMedia.imageUris.length === 1 ? "1 Image" : selectedMedia.imageUris.length ? `${selectedMedia.imageUris.length} Images` : "Add Image",
       ),
     },
     {
-      key: "audio",
+      key: "voice-memo",
       borderColor:
         selectedMedia.audioUri || isRecording ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
-      onPress: isRecording ? stopRecording : startRecording,
+      onPress: isRecording ? stopRecording : selectedMedia.audioUri ? playAudio : startRecording,
+      selected: Boolean(selectedMedia.audioUri || isRecording),
       accessibilityLabel: isRecording ? "Stop recording" : "Start voice memo",
+      accessibilityHint: isRecording ? "Recording in progress" : selectedMedia.audioUri ? "Voice memo added" : undefined,
       content: renderToolbarItem(
-        <MaterialCommunityIcons
-          name="mic"
-          size={28}
-          color={ENTRY_SECONDARY}
-        />,
-        "Voice Memo",
+        <MaterialCommunityIcons name="mic" size={28} color={ENTRY_SECONDARY} />,
+        isRecording ? "Recording…" : selectedMedia.audioUri ? "Voice Added" : "Voice Memo",
       ),
     },
     {
-      key: "mood",
-      borderColor: mood ? ENTRY_SECONDARY : ENTRY_ACCENT,
+      key: "location",
+      borderColor: selectedMedia.location ? ENTRY_SECONDARY : ENTRY_ACCENT,
       backgroundColor: ENTRY_TEXTBOX_BG,
-      onPress: () => setShowMoodPicker(true),
-      accessibilityLabel: "Add mood",
-      accessibilityHint: mood ? `Mood: ${MOOD_MAP[mood]?.label}` : "Select a mood",
+      onPress: requestLocation,
+      selected: Boolean(selectedMedia.location),
+      accessibilityLabel: "Add location",
+      accessibilityHint: selectedMedia.location?.address || "Add an optional location",
       content: renderToolbarItem(
-        mood ? (
-          <Text style={styles.toolbarMoodIcon}>{MOOD_MAP[mood]?.emoji}</Text>
-        ) : (
-          <MaterialCommunityIcons
-            name="emoticon-happy-outline"
-            size={28}
-            color={ENTRY_SECONDARY}
-          />
-        ),
-        "Mood",
+        <MaterialCommunityIcons name="map-marker-outline" size={28} color={ENTRY_SECONDARY} />,
+        selectedMedia.location?.address || "Add Location",
       ),
     },
   ];
@@ -1136,28 +1117,6 @@ export function CreateEntryScreen() {
               <Text style={styles.inlineMetaText}>{currentDate}</Text>
             </View>
 
-            <TouchableOpacity
-              onPress={requestLocation}
-              style={styles.inlineMetaItem}
-              accessible
-              accessibilityLabel="Add location"
-              accessibilityRole="button"
-            >
-              <MaterialCommunityIcons
-                name="map-marker"
-                size={24}
-                color={ENTRY_PRIMARY}
-              />
-              <Text
-                style={[
-                  styles.inlineMetaText,
-                  locationText ? styles.inlineMetaTextActive : null,
-                ]}
-                numberOfLines={1}
-              >
-                {locationText || "Add location"}
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {selectedMedia.location && (
@@ -1173,14 +1132,31 @@ export function CreateEntryScreen() {
             </TouchableOpacity>
           )}
 
-          <EntryMediaToolbar
+          <EntryOptionsCarousel
+            ref={optionsCarouselRef}
             buttons={toolbarButtons}
             containerStyle={styles.toolbar}
             buttonStyle={styles.toolbarButton}
+            surfaceColor={ENTRY_BACKGROUND}
           />
 
+          {drawerRequirementError || statusRequirementError ? (
+            <View accessibilityLiveRegion="polite">
+              {drawerRequirementError ? (
+                <Text style={[theme.typography.bodySm, styles.requirementError]}>
+                  {drawerRequirementError}
+                </Text>
+              ) : null}
+              {statusRequirementError ? (
+                <Text style={[theme.typography.bodySm, styles.requirementError]}>
+                  {statusRequirementError}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {isRecording ? (
-            <View style={styles.recordingStatusRow}>
+            <View accessibilityLiveRegion="polite" style={styles.recordingStatusRow}>
               <View style={styles.recordingStatusDot} />
               <Text style={styles.recordingStatusText}>Recording voice memo...</Text>
             </View>
@@ -1319,11 +1295,15 @@ export function CreateEntryScreen() {
           />
         </ScrollView>
 
-        <EntryMoodPickerModal
-          visible={showMoodPicker}
-          selectedMood={mood}
-          onSelectMood={(moodValue) => setValue("mood", moodValue)}
-          onClose={() => setShowMoodPicker(false)}
+        <EntryStatusPickerModal
+          visible={showStatusPicker}
+          selectedStatus={selectedStatus}
+          onSelectStatus={(status) => {
+            setSelectedStatus(status);
+            setStatusRequirementError(null);
+            setShowStatusPicker(false);
+          }}
+          onClose={() => setShowStatusPicker(false)}
           backgroundColor={entryPalette.background}
           textColor={entryPalette.text}
           borderColor={entryPalette.border}
@@ -1337,7 +1317,7 @@ export function CreateEntryScreen() {
           items={selectableDrawers.map((drawer) => ({
             id: drawer.id,
             name: drawer.name,
-            isManageable: "isManageable" in drawer ? drawer.isManageable : true,
+            isManageable: true,
           }))}
           selectedIds={selectedDrawers}
           onToggle={toggleDrawer}
@@ -1584,22 +1564,9 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   toolbar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 14,
     marginTop: 4,
   },
   toolbarButton: {
-    width: "17.6%",
-    aspectRatio: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: ENTRY_TEXTBOX_BG,
-    borderColor: ENTRY_ACCENT,
-    padding: 8,
     shadowColor: "#2F2924",
     shadowOpacity: 0.02,
     shadowOffset: { width: 0, height: 6 },
@@ -1618,8 +1585,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
-  toolbarMoodIcon: {
-    fontSize: 24,
+  requirementError: {
+    color: ENTRY_DANGER_DARK,
+    marginBottom: 8,
   },
   recordingStatusRow: {
     flexDirection: "row",
@@ -1771,33 +1739,6 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 52,
     borderRadius: 999,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  moodPicker: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  moodGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-  moodOption: {
-    width: "22%",
-    aspectRatio: 1,
-    borderWidth: 2,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  moodText: {
-    fontSize: 28,
   },
   modalContainer: {
     flex: 1,

@@ -2,6 +2,7 @@ import { AppPageHeader, SafeArea, Screen } from "@components/layout";
 import { AppModalSheet, Button } from "@components/ui";
 import { ConnectedReflectionsSection } from "@features/return/ConnectedReflectionsSection";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
+import { getEntryStatusLabel } from "@constants/entryStatus";
 import { MOOD_MAP } from "@constants/moods";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -465,7 +466,14 @@ export function EntryDetailScreen() {
                 {formattedDate}
               </Text>
 
-              {entry.mood && (
+              {entry.currentStatus ? (
+                <View style={[styles.statusRow, { marginBottom: theme.spacing.lg }]}>
+                  <Text style={[theme.typography.labelSm, styles.statusLabel, { color: theme.colors.textSecondary }]}>Current Status</Text>
+                  <Text style={[theme.typography.body, { color: theme.colors.text }]}>
+                    {getEntryStatusLabel(entry.currentStatus)}
+                  </Text>
+                </View>
+              ) : entry.mood ? (
                 <View style={[styles.moodRow, { marginBottom: theme.spacing.lg }]}>
                   <Text style={[styles.moodEmoji, { marginRight: theme.spacing.sm }]}>
                     {MOOD_MAP[entry.mood as MoodValue]?.emoji}
@@ -479,7 +487,7 @@ export function EntryDetailScreen() {
                     {MOOD_MAP[entry.mood as MoodValue]?.label}
                   </Text>
                 </View>
-              )}
+              ) : null}
 
               <Text
                 style={[
@@ -918,6 +926,13 @@ const styles = StyleSheet.create({
   },
   moodEmoji: {
     fontSize: 24,
+  },
+  statusRow: {
+    gap: 4,
+  },
+  statusLabel: {
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
   },
   sectionBlock: {
     width: "100%",

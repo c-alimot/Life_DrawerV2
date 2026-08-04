@@ -91,6 +91,7 @@ export const entriesService = {
         savedForLater: request.savedForLater,
         resurfacingEnabled: request.resurfacingEnabled,
       });
+      await this.validateOwnedDrawerIds(userId, request.drawerIds);
 
       const entryInsertPayload: EntryInsertPayload = {
         user_id: userId,
@@ -325,6 +326,7 @@ export const entriesService = {
         savedForLater: request.savedForLater,
         resurfacingEnabled: request.resurfacingEnabled,
       });
+      await this.validateOwnedDrawerIds(userId, request.drawerIds);
       let imageUrls = await this.normalizeStoredMediaRefs(userId, request.imageUris);
       const entryImagePrefix = `${userId}/${entryId}/images/`;
       imageUrls = imageUrls.filter(
@@ -671,6 +673,27 @@ export const entriesService = {
         .filter((tag): tag is ReturnType<typeof this.mapTagRow> => Boolean(tag)),
       author,
     }));
+  },
+
+  async validateOwnedDrawerIds(userId: string, drawerIds?: string[]) {
+    if (!drawerIds?.length) {
+      return;
+    }
+
+    const uniqueDrawerIds = Array.from(new Set(drawerIds));
+    const { data, error } = await supabase
+      .from("drawers")
+      .select("id")
+      .eq("user_id", userId)
+      .in("id", uniqueDrawerIds);
+
+    if (error) {
+      throw error;
+    }
+
+    if ((data || []).length !== uniqueDrawerIds.length) {
+      throw new Error("One or more selected Drawers are unavailable");
+    }
   },
 
   async getFilteredEntryIds(

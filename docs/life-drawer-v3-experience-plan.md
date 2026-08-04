@@ -223,7 +223,7 @@ Required ordered keys:
 2. `tags`
 3. `status`
 4. `image`
-5. `voice_memo`
+5. `voice-memo`
 6. `location`
 
 ### Behaviour and accessibility requirements
@@ -294,3 +294,21 @@ Phase 1B implements the additive Status foundation described above. `entries.cur
 The visible Insights experience is now named **Return** at `/return`. The legacy `/insights` route redirects to `/return` while forwarding query parameters. Existing feature, service, preference, and SQL RPC identifiers retain their Insights names to avoid a broad compatibility-breaking rename.
 
 The project has no configured test runner or local Supabase configuration. Phase 1B therefore adds a dependency-free runtime Status validation check; RPC/RLS integration checks must run against a started local Supabase stack or staging database before the migration is deployed.
+
+## Phase 2A implementation notes
+
+The existing Entry forms now require a persisted Drawer and an explicit Status, while tags, images, voice memos, and location remain optional. The former visual starter Drawer is not offered because it was not a persisted Drawer relationship and therefore could not satisfy the Place rule.
+
+Mood is removed from new and edit forms without changing stored Mood values. Entry detail shows current Status when available; it shows the historical Mood label only for legacy Entries without Status.
+
+Creating an Entry with Status writes the Entry first, then uses the atomic initial-Status RPC. If that Status write fails, the client deletes the newly created Entry rather than leaving a Status-less entry from a required-Status submission. Editing without a Status change creates no event; choosing a different Status appends one immutable history event. Status notes and historical corrections remain deferred to the dedicated future Status-management flow.
+
+## Phase 2B implementation notes
+
+`EntryOptionsCarousel` replaces the wrapping Entry option tile grid in both the create and edit forms. It receives six typed options in the fixed order **Drawer → Tags → Status → Image → Voice Memo → Location**, uses a native horizontal `ScrollView`, and has intentionally fixed 78-pixel tiles so a 320-pixel screen shows Drawer, Tags, Status, and part of Image without page-level horizontal scrolling.
+
+The component measures its viewport and content to show right/left stepped edge fades and a small scroll-progress segment only while options overflow. Its one-time hint uses the same native `AsyncStorage`/web local-storage pattern as onboarding and is dismissed after horizontal scrolling. Focus and validation can call its `revealOption` handle; it uses immediate scrolling when the operating system requests reduced motion.
+
+Drawer and Status have a visible required marker, accessible required/selected state, and existing inline validation messages. On a failed save, the form reveals and focuses Drawer first when both are missing, otherwise Status. Image previews and voice controls remain outside the carousel; the carousel only reflects their latest count or active/added state. Edit now also shows the saved Location and allows refreshing it through the existing location-permission pattern.
+
+The project still has no component/integration test runner, so focused runtime coverage verifies the fixed option contract alongside the existing Status and requirement validation tests. Manual device and browser checks remain required for touch, keyboard, screen-reader, and layout behavior.

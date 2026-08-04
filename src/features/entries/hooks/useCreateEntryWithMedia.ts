@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
 import { entriesApi } from '../api/entries.api';
+import { entryStatusApi } from '../api/entryStatus.api';
 import { returnApi } from '@features/return/return.api';
 import type {
   ApiError,
@@ -28,13 +29,14 @@ export function useCreateEntryWithMedia() {
       setUploadProgress(0);
 
       try {
+        const { currentStatus, ...entryData } = data;
         const result = linkedReflection
           ? await returnApi.createLinkedReflection(user.id, {
               parentEntryId: linkedReflection.parentEntryId,
               reflectionType: linkedReflection.reflectionType,
-              entryData: data,
+              entryData,
             })
-          : await entriesApi.createEntry(user.id, data);
+          : await entriesApi.createEntry(user.id, entryData);
 
         if (!result.success || !result.data) {
           setError(
@@ -44,6 +46,31 @@ export function useCreateEntryWithMedia() {
             }
           );
           return null;
+        }
+
+        if (currentStatus) {
+          const statusResult = await entryStatusApi.setInitialEntryStatus(
+            result.data.id,
+            currentStatus,
+          );
+
+          if (!statusResult.success) {
+            try {
+              await entriesApi.deleteEntry(result.data.id, user.id);
+            } catch (cleanupError) {
+              console.error('Entry Status rollback error:', cleanupError);
+            }
+
+            setError(
+              statusResult.error || {
+                code: 'UNKNOWN_ERROR',
+                message: 'Failed to save Entry Status',
+              },
+            );
+            return null;
+          }
+
+          result.data.currentStatus = statusResult.data?.currentStatus || currentStatus;
         }
 
         setUploadProgress(100);

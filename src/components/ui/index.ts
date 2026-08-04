@@ -5,8 +5,14 @@ export { Modal, ModalHeader, ModalFooter } from './Modal';
 export { Skeleton } from './Skeleton';
 export { EntryMediaToolbar } from "./EntryMediaToolbar";
 export type { EntryMediaToolbarButton } from "./EntryMediaToolbar";
+export { EntryOptionsCarousel } from "./EntryOptionsCarousel";
+export type {
+  EntryOptionsCarouselButton,
+  EntryOptionsCarouselHandle,
+} from "./EntryOptionsCarousel";
 export { EntryImageStrip } from "./EntryImageStrip";
 export { EntryMoodPickerModal } from "./EntryMoodPickerModal";
+export { EntryStatusPickerModal } from "./EntryStatusPickerModal";
 export { EntrySelectionModal } from "./EntrySelectionModal";
 export { SectionHeader } from "./SectionHeader";
 export { Card, CardIconWrap } from "./Card";
