@@ -62,7 +62,7 @@ export function InsightsTimeRangeControl({
   ];
 
   return (
-    <View style={styles.rangeSection} accessibilityLabel={`Insights time range: ${options.find((option) => option.value === value)?.label}`}>
+    <View style={styles.rangeSection} accessibilityLabel={`Return time range: ${options.find((option) => option.value === value)?.label}`}>
       <Text style={[theme.typography.bodySm, styles.rangeLabel, { color: PAGE_MUTED }]}>Use this range for the sections below</Text>
       <View style={styles.rangeOptions} accessibilityRole="radiogroup">
         {options.map((option) => {
@@ -247,7 +247,7 @@ export function InsightsExplainabilitySection() {
 
   return (
     <Card variant="soft" style={styles.explainabilityCard}>
-      <Text accessibilityRole="header" style={[theme.typography.h3, { color: PAGE_TEXT, fontFamily: theme.fonts.serif }]}>About these insights</Text>
+      <Text accessibilityRole="header" style={[theme.typography.h3, { color: PAGE_TEXT, fontFamily: theme.fonts.serif }]}>About your collection</Text>
       <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>Themes come from Tags you created, and comparisons come from Entries you connected through reflections. Life Drawer does not infer meaning, mood, or mental health from your writing.</Text>
     </Card>
   );

@@ -1,4 +1,5 @@
 import { API_ERRORS } from "@constants/errors";
+import { entryStatusSchema } from "@constants/entryStatus";
 import {
   ApiError,
   CreateEntryRequest,
@@ -20,6 +21,7 @@ type EntryRow = {
   title: string | null;
   content: string;
   mood: string | null;
+  current_status: string | null;
   images: unknown;
   audio_url: string | null;
   location: unknown;
@@ -895,6 +897,7 @@ export const entriesService = {
       title: row.title ?? "",
       content: row.content,
       mood: this.normalizeMood(row.mood),
+      currentStatus: row.current_status ? entryStatusSchema.parse(row.current_status) : null,
       images,
       audioUrl,
       location: this.parseLocation(row.location),

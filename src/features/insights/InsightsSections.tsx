@@ -55,7 +55,7 @@ function RetryCard({ message, onRetry }: { message: string; onRetry: () => void 
         onPress={onRetry}
         style={styles.textAction}
         accessibilityRole="button"
-        accessibilityLabel="Try loading this Insights section again"
+        accessibilityLabel="Try loading this Return section again"
       >
         <Text style={[theme.typography.bodySm, { color: PAGE_SECONDARY, fontWeight: "700" }]}>Try again</Text>
       </TouchableOpacity>

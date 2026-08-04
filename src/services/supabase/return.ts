@@ -162,7 +162,7 @@ export const returnService = {
     const { data: candidateRows, error: candidateError } = await supabase
       .from("entries")
       .select(
-        "id, user_id, title, content, mood, created_at, updated_at, parent_entry_id, reflection_type, last_viewed_at, revisit_count, saved_for_later, resurfacing_enabled, last_resurfaced_at, resurface_count, return_dismissed_until",
+        "id, user_id, title, content, mood, current_status, created_at, updated_at, parent_entry_id, reflection_type, last_viewed_at, revisit_count, saved_for_later, resurfacing_enabled, last_resurfaced_at, resurface_count, return_dismissed_until",
       )
       .in("id", entryIds)
       .eq("user_id", userId)
@@ -239,7 +239,7 @@ export const returnService = {
       supabase
         .from("entries")
         .select(
-          "id, user_id, title, content, mood, created_at, updated_at, parent_entry_id, reflection_type, last_viewed_at, revisit_count, saved_for_later, resurfacing_enabled, last_resurfaced_at, resurface_count, return_dismissed_until",
+          "id, user_id, title, content, mood, current_status, created_at, updated_at, parent_entry_id, reflection_type, last_viewed_at, revisit_count, saved_for_later, resurfacing_enabled, last_resurfaced_at, resurface_count, return_dismissed_until",
         )
         .eq("user_id", userId)
         .eq("resurfacing_enabled", true)

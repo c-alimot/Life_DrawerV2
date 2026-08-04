@@ -36,9 +36,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="insights"
+        name="return"
         options={{
-          title: "Insights",
+          title: "Return",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons
               name="chart-line"
@@ -48,6 +48,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="insights" options={{ href: null }} />
     </Tabs>
   );
 }

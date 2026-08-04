@@ -68,6 +68,7 @@ export type Database = {
           life_phase_id: string | null
           location: Json | null
           mood: string | null
+          current_status: string | null
           occurred_at: string | null
           parent_entry_id: string | null
           reflection_type: string | null
@@ -91,6 +92,7 @@ export type Database = {
           life_phase_id?: string | null
           location?: Json | null
           mood?: string | null
+          current_status?: string | null
           occurred_at?: string | null
           parent_entry_id?: string | null
           reflection_type?: string | null
@@ -114,6 +116,7 @@ export type Database = {
           life_phase_id?: string | null
           location?: Json | null
           mood?: string | null
+          current_status?: string | null
           occurred_at?: string | null
           parent_entry_id?: string | null
           reflection_type?: string | null
@@ -191,6 +194,61 @@ export type Database = {
           },
           {
             foreignKeyName: "entry_drawers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entry_status_history: {
+        Row: {
+          connected_reflection_entry_id: string | null
+          created_at: string
+          entry_id: string
+          id: string
+          note: string | null
+          source: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          connected_reflection_entry_id?: string | null
+          created_at?: string
+          entry_id: string
+          id?: string
+          note?: string | null
+          source?: string
+          status: string
+          user_id: string
+        }
+        Update: {
+          connected_reflection_entry_id?: string | null
+          created_at?: string
+          entry_id?: string
+          id?: string
+          note?: string | null
+          source?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entry_status_history_entry_user_fk"
+            columns: ["entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "entry_status_history_reflection_user_fk"
+            columns: ["connected_reflection_entry_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "entries"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "entry_status_history_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -385,6 +443,40 @@ export type Database = {
           saved_for_later_count: number
           connected_reflection_count: number
           revisited_count: number
+        }[]
+      }
+      set_initial_entry_status: {
+        Args: {
+          p_entry_id: string
+          p_status: string
+        }
+        Returns: {
+          connected_reflection_entry_id: string | null
+          created_at: string
+          entry_id: string
+          event_id: string
+          note: string | null
+          source: string
+          status: string
+          user_id: string
+        }[]
+      }
+      update_entry_status: {
+        Args: {
+          p_connected_reflection_entry_id?: string | null
+          p_entry_id: string
+          p_note?: string | null
+          p_status: string
+        }
+        Returns: {
+          connected_reflection_entry_id: string | null
+          created_at: string
+          entry_id: string
+          event_id: string
+          note: string | null
+          source: string
+          status: string
+          user_id: string
         }[]
       }
       get_drawer_filtered_entry_ids: {

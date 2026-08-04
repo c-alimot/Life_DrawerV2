@@ -1,3 +1,7 @@
+import type { EntryStatus } from "@constants/entryStatus";
+
+export type { EntryStatus } from "@constants/entryStatus";
+
 export interface ApiError {
   code: string;
   message: string;
@@ -117,6 +121,7 @@ export interface Entry {
   title: string;
   content: string;
   mood?: MoodValue;
+  currentStatus: EntryStatus | null;
   images: string[];
   audioUrl?: string;
   location?: EntryLocation;
@@ -132,6 +137,31 @@ export interface Entry {
   returnDismissedUntil?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type EntryStatusChangeSource = "initial" | "update";
+
+export interface EntryStatusHistory {
+  id: string;
+  entryId: string;
+  userId: string;
+  status: EntryStatus;
+  note?: string | null;
+  connectedReflectionEntryId?: string | null;
+  source: EntryStatusChangeSource;
+  createdAt: string;
+}
+
+export interface UpdateEntryStatusRequest {
+  entryId: string;
+  status: EntryStatus;
+  note?: string | null;
+  connectedReflectionEntryId?: string | null;
+}
+
+export interface EntryStatusUpdateResult {
+  currentStatus: EntryStatus;
+  historyEvent: EntryStatusHistory;
 }
 
 export interface EntryWithRelations extends Entry {
@@ -322,6 +352,7 @@ export interface EntryDraft {
   title: string;
   content: string;
   mood?: MoodValue;
+  currentStatus?: EntryStatus | null;
   selectedDrawerIds: string[];
   selectedTagIds: string[];
   imageUris?: string[];
@@ -333,6 +364,7 @@ export interface CreateEntryRequest {
   title: string;
   content: string;
   mood?: MoodValue;
+  currentStatus?: EntryStatus | null;
   drawerIds?: string[];
   tagIds?: string[];
   imageUris?: string[];
@@ -360,6 +392,7 @@ export interface UpdateEntryRequest {
   title?: string;
   content?: string;
   mood?: MoodValue;
+  currentStatus?: EntryStatus | null;
   imageUris?: string[];
   audioUrl?: string | null;
   location?: EntryLocation | null;

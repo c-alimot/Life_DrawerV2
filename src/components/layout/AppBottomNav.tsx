@@ -15,7 +15,7 @@ type NavRoute =
   | "/"
   | "/all-entries"
   | "/drawers"
-  | "/insights"
+  | "/return"
   | "/search"
   | "/settings"
   | "/tags";
@@ -31,7 +31,7 @@ const ITEMS: {
 }[] = [
   { label: "Home", route: "/", icon: "home" },
   { label: "Drawers", route: "/drawers", icon: "archive-outline" },
-  { label: "Insights", route: "/insights", icon: "chart-box-outline" },
+  { label: "Return", route: "/return", icon: "chart-box-outline" },
   { label: "Account", route: "/settings", icon: "account-cog-outline" },
 ];
 

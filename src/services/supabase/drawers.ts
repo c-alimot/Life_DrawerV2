@@ -1,4 +1,5 @@
 import { API_ERRORS } from "@constants/errors";
+import { entryStatusSchema } from "@constants/entryStatus";
 import {
   ApiError,
   CreateDrawerRequest,
@@ -31,6 +32,7 @@ type EntryRow = {
   title: string;
   content: string;
   mood: string | null;
+  current_status: string | null;
   images: unknown;
   audio_url: string | null;
   location: unknown;
@@ -320,6 +322,7 @@ export const drawersService = {
       title: row.title,
       content: row.content || "",
       mood: row.mood as Entry["mood"],
+      currentStatus: row.current_status ? entryStatusSchema.parse(row.current_status) : null,
       images: Array.isArray(row.images) ? row.images.filter((item): item is string => typeof item === "string") : [],
       audioUrl: row.audio_url ?? undefined,
       location: typeof row.location === "object" && row.location

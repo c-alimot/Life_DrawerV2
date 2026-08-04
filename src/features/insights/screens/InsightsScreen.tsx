@@ -98,8 +98,8 @@ export function InsightsScreen() {
         <AppPageHeader onSearchPress={() => router.push("/search")} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
           <View style={styles.hero}>
-            <Text accessibilityRole="header" style={[styles.title, { color: PAGE_TEXT, fontFamily: theme.fonts.serif }]}>Insights</Text>
-            <Text style={[theme.typography.body, styles.introduction, { color: PAGE_MUTED }]}>Insights help you notice what has stayed, changed, or returned across your collection.</Text>
+            <Text accessibilityRole="header" style={[styles.title, { color: PAGE_TEXT, fontFamily: theme.fonts.serif }]}>Return</Text>
+            <Text style={[theme.typography.body, styles.introduction, { color: PAGE_MUTED }]}>Return to earlier Entries, continuing reflections, and patterns from your collection.</Text>
           </View>
 
           {returnContentEnabled ? (
@@ -124,7 +124,7 @@ export function InsightsScreen() {
           <ExploreCollectionSection drawers={drawers} onOpenDrawer={openDrawer} onBrowseDrawers={() => router.push("/drawers")} onBrowseTags={() => router.push("/tags")} onSearch={() => router.push("/search")} />
           <InsightsExplainabilitySection />
         </ScrollView>
-        <AppBottomNav currentRoute="/insights" />
+        <AppBottomNav currentRoute="/return" />
       </Screen>
     </SafeArea>
   );

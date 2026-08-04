@@ -528,7 +528,7 @@ export function SettingsScreen() {
               <View style={styles.preferenceTextBlock}>
                 <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Enable Return features</Text>
                 <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
-                  Allow Life Drawer to bring older Entries back on Home, Insights, and other Return experiences.
+                  Allow Life Drawer to bring older Entries back on Home and other Return experiences.
                 </Text>
               </View>
               <Switch
@@ -563,9 +563,9 @@ export function SettingsScreen() {
             </View>
             <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
               <View style={styles.preferenceTextBlock}>
-                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Return content in Insights</Text>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Return content</Text>
                 <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
-                  Include older Entries, continuing reflections, and Return pathways in Insights.
+                  Include older Entries, continuing reflections, and Return pathways in this experience.
                 </Text>
               </View>
               <Switch
@@ -576,7 +576,7 @@ export function SettingsScreen() {
                 disabled={subSettingsDisabled}
                 trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
                 thumbColor="#FFFFFF"
-                accessibilityLabel="Show Return content in Insights"
+                accessibilityLabel="Show Return content"
                 accessibilityHint={!isReturnEnabled ? "Enable Return features to change this setting" : undefined}
               />
             </View>

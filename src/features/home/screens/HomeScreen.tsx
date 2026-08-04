@@ -41,10 +41,10 @@ const DASHBOARD_CARDS = [
   },
   {
     key: "insights",
-    title: "Insights",
-    description: "Discover patterns in your reflections",
+    title: "Return",
+    description: "Revisit earlier entries and continuing reflections",
     icon: "chart-box-outline" as const,
-    route: "/insights" as const,
+    route: "/return" as const,
   },
   {
     key: "account",
