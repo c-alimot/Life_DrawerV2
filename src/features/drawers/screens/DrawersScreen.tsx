@@ -120,8 +120,8 @@ export function DrawersScreen() {
     [],
   );
   const resolveDrawerIcon = useCallback(
-    (icon: string | undefined | null) =>
-      isSupportedDrawerIcon(icon) ? icon : DEFAULT_DRAWER_ICON,
+    (icon: string | undefined | null): string =>
+      isSupportedDrawerIcon(icon) ? icon || DEFAULT_DRAWER_ICON : DEFAULT_DRAWER_ICON,
     [isSupportedDrawerIcon],
   );
 
@@ -154,7 +154,7 @@ export function DrawersScreen() {
     }
 
     setEditingDrawer(drawer);
-    setEditDrawerName(drawer.name);
+    setEditDrawerName(drawer.name || "");
     setEditDrawerIcon(resolveDrawerIcon(drawer.icon));
   }, [resolveDrawerIcon]);
 
@@ -395,7 +395,7 @@ export function DrawersScreen() {
                         { color: PAGE_TEXT, fontFamily: theme.fonts.serif },
                       ]}
                     >
-                      {item.name}
+                      {item.name || "Untitled Drawer"}
                     </Text>
                     <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
                       {item.entryCount} entries

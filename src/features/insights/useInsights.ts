@@ -11,7 +11,7 @@ import type {
   RecentlyReturnedEntry,
   SavedForLaterInsightsSummary,
 } from "@types";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { insightsApi } from "./insights.api";
 
 function getTimeRangeStart(timeRange: InsightsTimeRange): string | undefined {
@@ -41,6 +41,7 @@ export function useInsights() {
   const [comparisonsError, setComparisonsError] = useState<ApiError | null>(null);
   const [recentlyReturnedError, setRecentlyReturnedError] = useState<ApiError | null>(null);
   const [savedForLaterError, setSavedForLaterError] = useState<ApiError | null>(null);
+  const latestRequestRef = useRef(0);
 
   const load = useCallback(async (timeRange: InsightsTimeRange = "all") => {
     if (!user) {
@@ -48,6 +49,8 @@ export function useInsights() {
       return;
     }
 
+    const requestId = latestRequestRef.current + 1;
+    latestRequestRef.current = requestId;
     setIsLoading(true);
     const showReturn =
       user.returnPreferences.returnFeaturesEnabled &&
@@ -66,6 +69,10 @@ export function useInsights() {
     ]);
 
     const [overviewResult, reflectionsResult, drawersResult, returnResult, themesResult, comparisonsResult, recentlyReturnedResult, savedForLaterResult] = requests;
+    if (latestRequestRef.current !== requestId) {
+      return;
+    }
+
     setOverview(overviewResult.data);
     setReflections(reflectionsResult.data);
     setDrawers(drawersResult.data || []);
@@ -83,6 +90,13 @@ export function useInsights() {
     setRecentlyReturnedError(recentlyReturnedResult.error);
     setSavedForLaterError(savedForLaterResult.error);
     setIsLoading(false);
+  }, [user]);
+
+  const recordReturnCandidateDisplay = useCallback(async (entryId: string) => {
+    if (!user) return false;
+
+    const result = await insightsApi.recordReturnCandidateDisplay(entryId, user.id);
+    return result.success;
   }, [user]);
 
   return {
@@ -107,6 +121,7 @@ export function useInsights() {
       user?.returnPreferences.returnFeaturesEnabled &&
         user.returnPreferences.insightsReturnContentEnabled,
     ),
+    recordReturnCandidateDisplay,
     load,
   };
 }

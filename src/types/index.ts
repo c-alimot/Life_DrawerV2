@@ -290,6 +290,23 @@ export interface SavedForLaterInsightsSummary {
   entryCount: number;
 }
 
+export interface ExcludedReturnEntry {
+  id: string;
+  createdAt: string;
+}
+
+export interface ExcludedReturnDrawer {
+  id: string;
+  name: string;
+}
+
+export interface ExcludedReturnContent {
+  entryCount: number;
+  drawerCount: number;
+  entries: ExcludedReturnEntry[];
+  drawers: ExcludedReturnDrawer[];
+}
+
 export interface DrawerWithRelations extends Drawer {
   entries: Entry[];
   entryCount: number;

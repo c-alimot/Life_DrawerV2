@@ -6,6 +6,15 @@ import type {
 } from "@types";
 
 export const returnApi = {
+  async getExcludedReturnContent(userId: string) {
+    try {
+      const result = await returnService.getExcludedReturnContent(userId);
+      return { success: true, data: result, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
+
   async getDrawerCommonTags(drawerId: string) {
     try {
       const result = await returnService.getDrawerCommonTags(drawerId);

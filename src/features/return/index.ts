@@ -17,6 +17,7 @@ export { DrawerReturnSection } from "./DrawerReturnSection";
 export type { HomeReturnCandidate, HomeReturnCandidateReason } from "@types";
 export { returnApi } from "./return.api";
 export { useBasicReturnEntry } from "./useBasicReturnEntry";
+export { useExcludedReturnContent } from "./useExcludedReturnContent";
 export { ConnectedReflectionsSection } from "./ConnectedReflectionsSection";
 export { HomeReturnSection } from "./HomeReturnSection";
 export {

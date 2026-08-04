@@ -5,14 +5,16 @@ import { MaterialCommunityIcons } from "@components/ui/icons";
 import Constants from "expo-constants";
 import { authApi } from "@features/auth/api/auth.api";
 import { useLogout } from "@features/auth/hooks/useLogout";
+import { useExcludedReturnContent } from "@features/return";
 import { useAuthStore } from "@store";
 import { useTheme } from "@styles/theme";
-import type { UpdateReturnPreferencesRequest } from "@types";
+import type { ReturnNotificationFrequency, UpdateReturnPreferencesRequest } from "@types";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import {
   Alert,
+  ActivityIndicator,
   Image,
   Platform,
   ScrollView,
@@ -39,6 +41,7 @@ type SettingsPanel =
   | "password"
   | "notifications"
   | "return"
+  | "excludedReturn"
   | "privacy"
   | "storage"
   | "help"
@@ -78,9 +81,18 @@ export function SettingsScreen() {
   const [activePanel, setActivePanel] = useState<SettingsPanel | null>(null);
   const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
   const [isSavingReturnPreferences, setIsSavingReturnPreferences] = useState(false);
+  const [returnFeedback, setReturnFeedback] = useState<string | null>(null);
   const [localSettings, setLocalSettings] =
     useState<LocalSettingsPreferences>(DEFAULT_LOCAL_SETTINGS);
   const [hasLoadedLocalSettings, setHasLoadedLocalSettings] = useState(false);
+  const {
+    content: excludedReturnContent,
+    isLoading: isExcludedReturnContentLoading,
+    error: excludedReturnContentError,
+    load: loadExcludedReturnContent,
+    restoreEntry: restoreExcludedEntry,
+    restoreDrawer: restoreExcludedDrawer,
+  } = useExcludedReturnContent();
 
   const displayName =
     user?.displayName?.trim() ||
@@ -97,7 +109,9 @@ export function SettingsScreen() {
       : activePanel === "notifications"
         ? "Notifications"
         : activePanel === "return"
-          ? "Return"
+          ? "Returning to past Entries"
+          : activePanel === "excludedReturn"
+            ? "Excluded from Return"
         : activePanel === "privacy"
           ? "Privacy"
           : activePanel === "storage"
@@ -249,6 +263,7 @@ export function SettingsScreen() {
       }
 
       setUser(result.data);
+      setReturnFeedback("Return preferences updated.");
     } catch (error) {
       Alert.alert(
         "Unable to update Return",
@@ -258,6 +273,26 @@ export function SettingsScreen() {
       setIsSavingReturnPreferences(false);
     }
   }, [setUser, user]);
+
+  const handleRestoreExcludedEntry = useCallback(async (entryId: string) => {
+    const restored = await restoreExcludedEntry(entryId);
+    if (!restored) {
+      Alert.alert("Unable to restore Entry", "Please try again in a moment.");
+      return;
+    }
+
+    setReturnFeedback("Entry restored to Return suggestions.");
+  }, [restoreExcludedEntry]);
+
+  const handleRestoreExcludedDrawer = useCallback(async (drawerId: string) => {
+    const restored = await restoreExcludedDrawer(drawerId);
+    if (!restored) {
+      Alert.alert("Unable to restore Drawer", "Please try again in a moment.");
+      return;
+    }
+
+    setReturnFeedback("Drawer restored to Return suggestions.");
+  }, [restoreExcludedDrawer]);
 
   useEffect(() => {
     let isMounted = true;
@@ -319,6 +354,12 @@ export function SettingsScreen() {
       });
   }, [hasLoadedLocalSettings, localSettings]);
 
+  useEffect(() => {
+    if (activePanel === "return" || activePanel === "excludedReturn") {
+      void loadExcludedReturnContent();
+    }
+  }, [activePanel, loadExcludedReturnContent]);
+
   const settingsOptions = useMemo(
     () => [
       {
@@ -338,7 +379,7 @@ export function SettingsScreen() {
       },
       {
         title: "Return",
-        subtitle: "Choose what may reappear on Home",
+        subtitle: "Choose what may return across Life Drawer",
         onPress: () => openPanel("return"),
       },
       {
@@ -447,18 +488,65 @@ export function SettingsScreen() {
 
     if (activePanel === "return") {
       const returnPreferences = user?.returnPreferences;
+      const isReturnEnabled = returnPreferences?.returnFeaturesEnabled ?? false;
+      const subSettingsDisabled = isSavingReturnPreferences || !returnPreferences || !isReturnEnabled;
+      const notificationOptions: {
+        value: ReturnNotificationFrequency;
+        label: string;
+        description: string;
+      }[] = [
+        {
+          value: "only_in_app",
+          label: "Only inside the app",
+          description: "Show Return content when I open Life Drawer, without sending notifications.",
+        },
+        {
+          value: "occasionally",
+          label: "Occasionally",
+          description: "Send an occasional notification when an Entry may be worth returning to.",
+        },
+        {
+          value: "weekly",
+          label: "Weekly",
+          description: "Send no more than one Return notification per week.",
+        },
+        {
+          value: "never",
+          label: "Never",
+          description: "Do not send Return notifications.",
+        },
+      ];
 
       return (
         <View style={styles.panelBody}>
           <Text style={[theme.typography.body, styles.panelCopy, { color: PAGE_MUTED }]}>
-            Return is optional. Your entries stay available in drawers and search whenever you pause it.
+            Choose when and where Life Drawer may bring older Entries back into your experience.
           </Text>
+          {returnFeedback ? <Text accessibilityLiveRegion="polite" style={[theme.typography.bodySm, styles.returnFeedback, { color: PAGE_SECONDARY }]}>{returnFeedback}</Text> : null}
           <View style={styles.preferenceList}>
             <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
               <View style={styles.preferenceTextBlock}>
-                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Return content on Home</Text>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Enable Return features</Text>
                 <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
-                  Occasionally show an older entry on your Home page.
+                  Allow Life Drawer to bring older Entries back on Home, Insights, and other Return experiences.
+                </Text>
+              </View>
+              <Switch
+                value={isReturnEnabled}
+                onValueChange={(value) =>
+                  void handleUpdateReturnPreferences({ returnFeaturesEnabled: value })
+                }
+                disabled={isSavingReturnPreferences || !returnPreferences}
+                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Enable Return features"
+              />
+            </View>
+            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
+              <View style={styles.preferenceTextBlock}>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show older Entries on Home</Text>
+                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
+                  Occasionally show one older Entry below the main writing action.
                 </Text>
               </View>
               <Switch
@@ -466,17 +554,37 @@ export function SettingsScreen() {
                 onValueChange={(value) =>
                   void handleUpdateReturnPreferences({ showReturnContentOnHome: value })
                 }
-                disabled={isSavingReturnPreferences || !returnPreferences}
+                disabled={subSettingsDisabled}
                 trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
                 thumbColor="#FFFFFF"
-                accessibilityLabel="Show Return content on Home"
+                accessibilityLabel="Show older Entries on Home"
+                accessibilityHint={!isReturnEnabled ? "Enable Return features to change this setting" : undefined}
               />
             </View>
             <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
               <View style={styles.preferenceTextBlock}>
-                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show entries from around this time</Text>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Return content in Insights</Text>
                 <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
-                  Include entries written around the same time in previous months or years.
+                  Include older Entries, continuing reflections, and Return pathways in Insights.
+                </Text>
+              </View>
+              <Switch
+                value={returnPreferences?.insightsReturnContentEnabled ?? false}
+                onValueChange={(value) =>
+                  void handleUpdateReturnPreferences({ insightsReturnContentEnabled: value })
+                }
+                disabled={subSettingsDisabled}
+                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
+                thumbColor="#FFFFFF"
+                accessibilityLabel="Show Return content in Insights"
+                accessibilityHint={!isReturnEnabled ? "Enable Return features to change this setting" : undefined}
+              />
+            </View>
+            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
+              <View style={styles.preferenceTextBlock}>
+                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Show Entries from around this time</Text>
+                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
+                  Include Entries written around the same date in previous months or years.
                 </Text>
               </View>
               <Switch
@@ -484,31 +592,71 @@ export function SettingsScreen() {
                 onValueChange={(value) =>
                   void handleUpdateReturnPreferences({ showOnThisDay: value })
                 }
-                disabled={isSavingReturnPreferences || !returnPreferences}
+                disabled={subSettingsDisabled}
                 trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
                 thumbColor="#FFFFFF"
-                accessibilityLabel="Show entries from around this time"
-              />
-            </View>
-            <View style={[styles.preferenceRow, softPanelSurfaceStyle]}>
-              <View style={styles.preferenceTextBlock}>
-                <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Pause all Return features</Text>
-                <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>
-                  Your entries will stay available in drawers and search.
-                </Text>
-              </View>
-              <Switch
-                value={!(returnPreferences?.returnFeaturesEnabled ?? true)}
-                onValueChange={(value) =>
-                  void handleUpdateReturnPreferences({ returnFeaturesEnabled: !value })
-                }
-                disabled={isSavingReturnPreferences || !returnPreferences}
-                trackColor={{ false: "#D8D2CA", true: PAGE_PRIMARY }}
-                thumbColor="#FFFFFF"
-                accessibilityLabel="Pause all Return features"
+                accessibilityLabel="Show Entries from around this time"
+                accessibilityHint={!isReturnEnabled ? "Enable Return features to change this setting" : undefined}
               />
             </View>
           </View>
+          <View style={[styles.returnSubsection, softPanelSurfaceStyle]}>
+            <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Return notifications</Text>
+            <Text style={[theme.typography.bodySm, styles.returnSubsectionCopy, { color: PAGE_MUTED }]}>Notification delivery is not active in this version. Your preference is saved for when it becomes available, and any future notification will use generic copy without Entry details.</Text>
+            <View accessibilityRole="radiogroup" style={styles.notificationOptions}>
+              {notificationOptions.map((option) => {
+                const isSelected = returnPreferences?.notificationFrequency === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    onPress={() => void handleUpdateReturnPreferences({ notificationFrequency: option.value })}
+                    disabled={subSettingsDisabled}
+                    style={[styles.notificationOption, isSelected && styles.notificationOptionSelected, subSettingsDisabled && styles.preferenceDisabled]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected, disabled: subSettingsDisabled }}
+                    accessibilityLabel={option.label}
+                    accessibilityHint={option.description}
+                  >
+                    <View style={[styles.radioCircle, isSelected && styles.radioCircleSelected]}>{isSelected ? <View style={styles.radioDot} /> : null}</View>
+                    <View style={styles.preferenceTextBlock}>
+                      <Text style={[theme.typography.bodySm, { color: PAGE_TEXT, fontWeight: "700" }]}>{option.label}</Text>
+                      <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>{option.description}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+          <View style={[styles.returnSubsection, softPanelSurfaceStyle]}>
+            <Text style={[styles.preferenceTitle, { color: PAGE_TEXT }]}>Excluded from Return</Text>
+            <Text style={[theme.typography.bodySm, styles.returnSubsectionCopy, { color: PAGE_MUTED }]}>{excludedReturnContent.entryCount} excluded {excludedReturnContent.entryCount === 1 ? "Entry" : "Entries"} · {excludedReturnContent.drawerCount} excluded {excludedReturnContent.drawerCount === 1 ? "Drawer" : "Drawers"}</Text>
+            <Button label="Manage excluded content" onPress={() => openPanel("excludedReturn")} variant="outline" size="sm" disabled={isExcludedReturnContentLoading} style={styles.manageExcludedButton} />
+          </View>
+        </View>
+      );
+    }
+
+    if (activePanel === "excludedReturn") {
+      const formatDate = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      const hasExcludedContent = excludedReturnContent.entryCount > 0 || excludedReturnContent.drawerCount > 0;
+
+      return (
+        <View style={styles.panelBody}>
+          <Text style={[theme.typography.body, styles.panelCopy, { color: PAGE_MUTED }]}>Entries and Drawers here are excluded only from automatic Return suggestions. They remain available through normal browsing.</Text>
+          {returnFeedback ? <Text accessibilityLiveRegion="polite" style={[theme.typography.bodySm, styles.returnFeedback, { color: PAGE_SECONDARY }]}>{returnFeedback}</Text> : null}
+          {isExcludedReturnContentLoading ? <View style={styles.excludedLoading}><ActivityIndicator size="small" color={PAGE_PRIMARY} /></View> : null}
+          {excludedReturnContentError ? <View style={styles.excludedError}><Text accessibilityLiveRegion="polite" style={[theme.typography.bodySm, { color: "#A6544E" }]}>Excluded content could not be loaded right now.</Text><Button label="Try again" onPress={() => void loadExcludedReturnContent()} variant="outline" size="sm" /></View> : null}
+          {!isExcludedReturnContentLoading && !excludedReturnContentError && !hasExcludedContent ? <View style={[styles.infoCard, softPanelSurfaceStyle]}><Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>Nothing is currently excluded from Return suggestions.</Text></View> : null}
+          {excludedReturnContent.entries.length > 0 ? <View style={styles.preferenceList}>
+            <Text style={[theme.typography.labelSm, { color: PAGE_MUTED }]}>ENTRIES</Text>
+            {excludedReturnContent.entries.map((entry) => <View key={entry.id} style={[styles.excludedRow, softPanelSurfaceStyle]}><Text style={[theme.typography.bodySm, styles.preferenceTextBlock, { color: PAGE_TEXT }]}>Entry from {formatDate(entry.createdAt)}</Text><Button label="Restore" onPress={() => void handleRestoreExcludedEntry(entry.id)} variant="outline" size="sm" /></View>)}
+          </View> : null}
+          {excludedReturnContent.entryCount > excludedReturnContent.entries.length || excludedReturnContent.drawerCount > excludedReturnContent.drawers.length ? <Text style={[theme.typography.bodySm, { color: PAGE_MUTED }]}>Showing the most recent 50 excluded items in each group.</Text> : null}
+          {excludedReturnContent.drawers.length > 0 ? <View style={styles.preferenceList}>
+            <Text style={[theme.typography.labelSm, { color: PAGE_MUTED }]}>DRAWERS</Text>
+            {excludedReturnContent.drawers.map((drawer) => <View key={drawer.id} style={[styles.excludedRow, softPanelSurfaceStyle]}><Text style={[theme.typography.bodySm, styles.preferenceTextBlock, { color: PAGE_TEXT }]}>{drawer.name}</Text><Button label="Restore" onPress={() => void handleRestoreExcludedDrawer(drawer.id)} variant="outline" size="sm" /></View>)}
+          </View> : null}
+          <Button label="Back to Return settings" onPress={() => openPanel("return")} variant="outline" size="md" style={styles.manageExcludedButton} />
         </View>
       );
     }
@@ -618,18 +766,29 @@ export function SettingsScreen() {
     activePanel,
     appVersion,
     handlePasswordReset,
+    handleRestoreExcludedDrawer,
+    handleRestoreExcludedEntry,
     handleUpdateReturnPreferences,
     isLoading,
+    isExcludedReturnContentLoading,
     isSendingPasswordReset,
     isSavingReturnPreferences,
+    loadExcludedReturnContent,
     localSettings.dailyReminders,
     localSettings.weeklyReflection,
+    excludedReturnContent.drawers,
+    excludedReturnContent.drawerCount,
+    excludedReturnContent.entries,
+    excludedReturnContent.entryCount,
+    excludedReturnContentError,
     logout,
+    openPanel,
     theme.typography.body,
     theme.typography.bodySm,
     theme.typography.labelSm,
     user?.email,
     user?.returnPreferences,
+    returnFeedback,
   ]);
 
   return (
@@ -1262,6 +1421,78 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "600",
     marginBottom: 4,
+  },
+  returnFeedback: {
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  returnSubsection: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  returnSubsectionCopy: {
+    lineHeight: 20,
+    marginTop: 2,
+  },
+  notificationOptions: {
+    gap: 8,
+    marginTop: 14,
+  },
+  notificationOption: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#E7DED2",
+    borderRadius: 14,
+    padding: 12,
+  },
+  notificationOptionSelected: {
+    borderColor: PAGE_PRIMARY,
+    backgroundColor: "#F1F3ED",
+  },
+  preferenceDisabled: {
+    opacity: 0.55,
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: PAGE_SECONDARY,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 1,
+  },
+  radioCircleSelected: {
+    borderColor: PAGE_PRIMARY,
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: PAGE_PRIMARY,
+  },
+  manageExcludedButton: {
+    alignSelf: "flex-start",
+    marginTop: 14,
+  },
+  excludedLoading: {
+    minHeight: 48,
+    justifyContent: "center",
+  },
+  excludedError: {
+    gap: 10,
+  },
+  excludedRow: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   storageCard: {
     borderRadius: 20,

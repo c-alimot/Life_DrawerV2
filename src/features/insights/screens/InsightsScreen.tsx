@@ -20,7 +20,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
 import { router } from "expo-router";
 import type { InsightsTimeRange } from "@types";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 
 const PAGE_BACKGROUND = "#EDEAE4";
@@ -49,9 +49,11 @@ export function InsightsScreen() {
     recentlyReturnedError,
     savedForLaterError,
     returnContentEnabled,
+    recordReturnCandidateDisplay,
     load,
   } = useInsights();
   const [timeRange, setTimeRange] = useState<InsightsTimeRange>("all");
+  const displayedReturnEntryIds = useRef(new Set<string>());
 
   useFocusEffect(
     useCallback(() => {
@@ -62,6 +64,16 @@ export function InsightsScreen() {
   const handleTimeRangeChange = useCallback((nextTimeRange: InsightsTimeRange) => {
     setTimeRange(nextTimeRange);
   }, []);
+
+  useEffect(() => {
+    const entryId = returnCandidate?.entry.id;
+    if (!returnContentEnabled || !entryId || displayedReturnEntryIds.current.has(entryId)) {
+      return;
+    }
+
+    displayedReturnEntryIds.current.add(entryId);
+    void recordReturnCandidateDisplay(entryId);
+  }, [recordReturnCandidateDisplay, returnCandidate?.entry.id, returnContentEnabled]);
 
   const openDrawer = useCallback((drawerId: string, filter?: "saved" | "connected") => {
     const params = filter ? `?filter=${filter}` : "";

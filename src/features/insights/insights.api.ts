@@ -80,4 +80,13 @@ export const insightsApi = {
       return { success: false, data: null, error: error as ApiError };
     }
   },
+
+  async recordReturnCandidateDisplay(entryId: string, userId: string) {
+    try {
+      const data = await returnService.recordHomeReturnDisplay(entryId, userId);
+      return { success: true, data, error: null };
+    } catch (error) {
+      return { success: false, data: null, error: error as ApiError };
+    }
+  },
 };

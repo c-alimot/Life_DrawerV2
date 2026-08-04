@@ -3,6 +3,7 @@ import type {
   Drawer,
   DrawerCommonTag,
   DrawerReturnOverview,
+  ExcludedReturnContent,
   EntryWithRelations,
   EntryViewRecord,
   ReturnPreferences,
@@ -25,8 +26,50 @@ type EntryRow = Database["public"]["Tables"]["entries"]["Row"];
 // One intentional full-entry opening counts once per entry and user within this window.
 const ENTRY_VIEW_DEDUPLICATION_WINDOW_MS = 5_000;
 const recentEntryViews = new Map<string, EntryViewRecord & { recordedAt: number }>();
+const RETURN_DISPLAY_DEDUPLICATION_WINDOW_MS = 5_000;
+const recentReturnDisplays = new Map<string, { lastResurfacedAt: string; resurfaceCount: number; recordedAt: number }>();
 
 export const returnService = {
+  async getExcludedReturnContent(userId: string): Promise<ExcludedReturnContent> {
+    const [entriesResult, drawersResult] = await Promise.all([
+      supabase
+        .from("entries")
+        .select("id, created_at", { count: "exact" })
+        .eq("user_id", userId)
+        .eq("resurfacing_enabled", false)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabase
+        .from("drawers")
+        .select("id, name", { count: "exact" })
+        .eq("user_id", userId)
+        .eq("resurfacing_enabled", false)
+        .order("name", { ascending: true })
+        .limit(50),
+    ]);
+
+    if (entriesResult.error) {
+      throw entriesResult.error;
+    }
+
+    if (drawersResult.error) {
+      throw drawersResult.error;
+    }
+
+    return {
+      entryCount: entriesResult.count || 0,
+      drawerCount: drawersResult.count || 0,
+      entries: (entriesResult.data || []).map((entry) => ({
+        id: entry.id,
+        createdAt: entry.created_at,
+      })),
+      drawers: (drawersResult.data || []).map((drawer) => ({
+        id: drawer.id,
+        name: drawer.name,
+      })),
+    };
+  },
+
   async getDrawerReturnOverview(drawerId: string): Promise<DrawerReturnOverview> {
     const { data, error } = await supabase
       .rpc("get_drawer_return_overview", { p_drawer_id: drawerId })
@@ -259,6 +302,18 @@ export const returnService = {
   },
 
   async recordHomeReturnDisplay(entryId: string, userId: string) {
+    const cacheKey = `${userId}:${entryId}`;
+    const now = Date.now();
+    const recentDisplay = recentReturnDisplays.get(cacheKey);
+
+    if (recentDisplay && now - recentDisplay.recordedAt < RETURN_DISPLAY_DEDUPLICATION_WINDOW_MS) {
+      return {
+        lastResurfacedAt: recentDisplay.lastResurfacedAt,
+        resurfaceCount: recentDisplay.resurfaceCount,
+        userId,
+      };
+    }
+
     const { data, error } = await supabase
       .rpc("record_home_return_display", { p_entry_id: entryId })
       .single();
@@ -267,9 +322,16 @@ export const returnService = {
       throw error || new Error("Unable to record Home Return display");
     }
 
-    return {
+    const returnDisplay = {
       lastResurfacedAt: data.last_resurfaced_at,
       resurfaceCount: data.resurface_count,
+      recordedAt: now,
+    };
+    recentReturnDisplays.set(cacheKey, returnDisplay);
+
+    return {
+      lastResurfacedAt: returnDisplay.lastResurfacedAt,
+      resurfaceCount: returnDisplay.resurfaceCount,
       userId,
     };
   },

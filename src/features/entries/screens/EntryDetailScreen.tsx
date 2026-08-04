@@ -143,17 +143,37 @@ export function EntryDetailScreen() {
     setIsReturnActionsOpen(false);
   }, [entry, setSavedForLater]);
 
-  const handleEntryResurfacing = useCallback(async () => {
-    if (!entry) return;
-
-    const success = await setEntryResurfacing(!entry.resurfacingEnabled);
+  const updateEntryResurfacing = useCallback(async (enabled: boolean) => {
+    const success = await setEntryResurfacing(enabled);
     if (!success) {
       Alert.alert("Unable to update this entry", "Please try again in a moment.");
       return;
     }
 
     setIsReturnActionsOpen(false);
-  }, [entry, setEntryResurfacing]);
+  }, [setEntryResurfacing]);
+
+  const handleEntryResurfacing = useCallback(() => {
+    if (!entry) return;
+
+    if (!entry.resurfacingEnabled) {
+      void updateEntryResurfacing(true);
+      return;
+    }
+
+    Alert.alert(
+      "Exclude from Return suggestions?",
+      "This Entry will remain available in its Drawer and in search. You can allow it in Return again at any time.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Exclude",
+          style: "destructive",
+          onPress: () => void updateEntryResurfacing(false),
+        },
+      ],
+    );
+  }, [entry, updateEntryResurfacing]);
 
   const handleRemoveDrawer = useCallback(
     (drawerId: string) => {
@@ -799,6 +819,7 @@ export function EntryDetailScreen() {
             style={styles.returnActionButton}
             accessibilityLabel={entry.resurfacingEnabled ? "Disable Return suggestions for this entry" : "Allow Return suggestions for this entry"}
           />
+          <Text style={[theme.typography.bodySm, styles.returnActionsSubtitle, { color: theme.colors.textSecondary }]}>Your Entry will remain available in its Drawer and in search.</Text>
           <Button
             label="Cancel"
             onPress={() => setIsReturnActionsOpen(false)}
