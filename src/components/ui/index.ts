@@ -13,6 +13,7 @@ export type {
 export { EntryImageStrip } from "./EntryImageStrip";
 export { EntryMoodPickerModal } from "./EntryMoodPickerModal";
 export { EntryStatusPickerModal } from "./EntryStatusPickerModal";
+export { EntryStatusUpdateSheet } from "./EntryStatusUpdateSheet";
 export { EntrySelectionModal } from "./EntrySelectionModal";
 export { SectionHeader } from "./SectionHeader";
 export { Card, CardIconWrap } from "./Card";

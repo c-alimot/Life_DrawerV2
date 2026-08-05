@@ -170,6 +170,16 @@ export interface EntryWithRelations extends Entry {
   author?: Profile;
 }
 
+export interface ReflectionChainEntry {
+  id: string;
+  userId: string;
+  parentEntryId?: string;
+  reflectionType?: ReflectionType;
+  currentStatus: EntryStatus | null;
+  content: string;
+  createdAt: string;
+}
+
 export type HomeReturnCandidateReason =
   | "saved_for_later"
   | "around_this_time"

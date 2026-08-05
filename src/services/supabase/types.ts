@@ -505,6 +505,20 @@ export type Database = {
           entry_count: number
         }[]
       }
+      get_entry_reflection_chain: {
+        Args: {
+          p_entry_id: string
+        }
+        Returns: {
+          created_at: string
+          current_status: string | null
+          entry_id: string
+          parent_entry_id: string | null
+          preview: string
+          reflection_type: string | null
+          user_id: string
+        }[]
+      }
       get_insights_collection_overview: {
         Args: Record<PropertyKey, never>
         Returns: {

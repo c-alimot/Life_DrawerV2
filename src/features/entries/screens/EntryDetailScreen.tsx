@@ -1,15 +1,16 @@
 import { AppPageHeader, SafeArea, Screen } from "@components/layout";
-import { AppModalSheet, Button } from "@components/ui";
-import { ConnectedReflectionsSection } from "@features/return/ConnectedReflectionsSection";
+import { AppModalSheet, Button, EntryStatusUpdateSheet } from "@components/ui";
+import { EntryDevelopmentTimeline } from "../components/EntryDevelopmentTimeline";
 import { ENTRY_PREVIEW_PILLS, sanitizeEntryPreviewLabel } from "@constants/entryPreviewPills";
 import { getEntryStatusLabel } from "@constants/entryStatus";
 import { MOOD_MAP } from "@constants/moods";
 import { MaterialCommunityIcons } from "@components/ui/icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "@styles/theme";
-import type { EntryWithRelations, MoodValue } from "@types";
+import { useAuthStore } from "@store";
+import type { EntryStatus, MoodValue, ReflectionChainEntry } from "@types";
 import { router, useLocalSearchParams } from "expo-router";
-import { useCallback, useRef, useState } from "react";
+import { type ComponentRef, useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -23,11 +24,13 @@ import {
 } from "react-native";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { useEntryDetail } from "../hooks/useEntryDetail";
+import { useUpdateEntryStatus } from "../hooks/useUpdateEntryStatus";
 
 type TabType = "content" | "media" | "details";
 
 export function EntryDetailScreen() {
   const theme = useTheme();
+  const { user } = useAuthStore();
   const { entryId, skipReturnView } = useLocalSearchParams<{
     entryId: string;
     skipReturnView?: string;
@@ -42,7 +45,12 @@ export function EntryDetailScreen() {
     reflectionChainError,
     isDeleting,
     isLoading,
+    statusHistory,
+    isStatusHistoryLoading,
+    developmentTimeline,
+    applyStatusUpdate,
     fetchEntry,
+    fetchStatusHistory,
     fetchReflectionChain,
     recordEntryView,
     setSavedForLater,
@@ -52,13 +60,16 @@ export function EntryDetailScreen() {
     unlinkDrawer,
     unlinkTag,
   } = useEntryDetail(resolvedEntryId);
+  const { updateStatus, isSaving: isSavingStatus, error: statusUpdateError } = useUpdateEntryStatus(resolvedEntryId);
   const { isPlaying, duration, position, play } = useAudioPlayer(
     entry?.audioUrl || null,
   );
 
   const [activeTab, setActiveTab] = useState<TabType>("content");
   const [isReturnActionsOpen, setIsReturnActionsOpen] = useState(false);
+  const [isStatusUpdateOpen, setIsStatusUpdateOpen] = useState(false);
   const hasSkippedInitialReturnViewRef = useRef(false);
+  const statusActionRef = useRef<ComponentRef<typeof TouchableOpacity>>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -131,6 +142,35 @@ export function EntryDetailScreen() {
   const handleOpenConnectedEntry = useCallback((connectedEntryId: string) => {
     router.push(`/entry/${connectedEntryId}`);
   }, []);
+
+  const handleCloseStatusUpdate = useCallback(() => {
+    setIsStatusUpdateOpen(false);
+    requestAnimationFrame(() => statusActionRef.current?.focus?.());
+  }, []);
+
+  const handleSaveStatusUpdate = useCallback(async (status: EntryStatus, note: string) => {
+    if (!entry) {
+      return false;
+    }
+
+    const result = await updateStatus({
+      currentStatus: entry.currentStatus,
+      status,
+      note,
+    });
+
+    if (!result) {
+      void fetchEntry();
+      return false;
+    }
+
+    applyStatusUpdate(result);
+    void fetchStatusHistory();
+    void fetchReflectionChain();
+    handleCloseStatusUpdate();
+    Alert.alert("Status updated.");
+    return true;
+  }, [applyStatusUpdate, entry, fetchEntry, fetchReflectionChain, fetchStatusHistory, handleCloseStatusUpdate, updateStatus]);
 
   const handleSavedForLater = useCallback(async () => {
     if (!entry) return;
@@ -246,7 +286,7 @@ export function EntryDetailScreen() {
   });
 
   const progressPercent = duration > 0 ? (position / duration) * 100 : 0;
-  const parentEntry: EntryWithRelations | undefined = entry.parentEntryId
+  const parentEntry: ReflectionChainEntry | undefined = entry.parentEntryId
     ? reflectionChain.find((connectedEntry) => connectedEntry.id === entry.parentEntryId)
     : undefined;
   const reflectionTypeLabel = entry.reflectionType
@@ -260,6 +300,15 @@ export function EntryDetailScreen() {
       })
     : null;
   const parentEntryPreview = parentEntry?.content.trim().replace(/\s+/g, " ").slice(0, 130);
+  const canUpdateStatus = user?.id === entry.userId;
+  const latestStatusEvent = statusHistory.at(-1);
+  const latestStatusDate = latestStatusEvent
+    ? new Date(latestStatusEvent.createdAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <SafeArea>
@@ -466,14 +515,34 @@ export function EntryDetailScreen() {
                 {formattedDate}
               </Text>
 
-              {entry.currentStatus ? (
-                <View style={[styles.statusRow, { marginBottom: theme.spacing.lg }]}>
-                  <Text style={[theme.typography.labelSm, styles.statusLabel, { color: theme.colors.textSecondary }]}>Current Status</Text>
-                  <Text style={[theme.typography.body, { color: theme.colors.text }]}>
-                    {getEntryStatusLabel(entry.currentStatus)}
-                  </Text>
-                </View>
-              ) : entry.mood ? (
+              <View style={[styles.statusSection, { borderColor: theme.colors.border, backgroundColor: theme.colors.surface, marginBottom: theme.spacing.lg }]}>
+                <Text accessibilityRole="header" style={[theme.typography.labelSm, styles.statusLabel, { color: theme.colors.textSecondary }]}>Current Status</Text>
+                <Text style={[theme.typography.body, styles.statusValue, { color: theme.colors.text }]}>
+                  {entry.currentStatus ? getEntryStatusLabel(entry.currentStatus) : "No Status added yet"}
+                </Text>
+                {isStatusHistoryLoading ? (
+                  <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>Loading Status date...</Text>
+                ) : latestStatusDate ? (
+                  <Text style={[theme.typography.bodySm, { color: theme.colors.textSecondary }]}>Updated {latestStatusDate}</Text>
+                ) : null}
+                {canUpdateStatus ? (
+                  <TouchableOpacity
+                    ref={statusActionRef}
+                    onPress={() => setIsStatusUpdateOpen(true)}
+                    style={[styles.statusAction, { borderColor: theme.colors.border }]}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel={entry.currentStatus ? "Update Status" : "Add Status"}
+                    accessibilityHint="Change where this Entry stands now without writing a full reflection"
+                  >
+                    <Text style={[theme.typography.bodySm, { color: theme.colors.secondary, fontWeight: "700" }]}>
+                      {entry.currentStatus ? "Update Status" : "Add Status"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {!entry.currentStatus && entry.mood ? (
                 <View style={[styles.moodRow, { marginBottom: theme.spacing.lg }]}>
                   <Text style={[styles.moodEmoji, { marginRight: theme.spacing.sm }]}>
                     {MOOD_MAP[entry.mood as MoodValue]?.emoji}
@@ -501,13 +570,12 @@ export function EntryDetailScreen() {
                 {entry.content}
               </Text>
 
-              <ConnectedReflectionsSection
-                entries={reflectionChain}
-                currentEntryId={entry.id}
+              <EntryDevelopmentTimeline
+                events={developmentTimeline?.events || []}
                 isLoading={isReflectionChainLoading}
                 error={reflectionChainError}
                 onRetry={() => void fetchReflectionChain()}
-                onOpenEntry={handleOpenConnectedEntry}
+                onOpenReflection={handleOpenConnectedEntry}
               />
             </View>
           )}
@@ -836,6 +904,15 @@ export function EntryDetailScreen() {
             accessibilityLabel="Close entry options"
           />
         </AppModalSheet>
+
+        <EntryStatusUpdateSheet
+          visible={isStatusUpdateOpen}
+          currentStatus={entry.currentStatus}
+          isSaving={isSavingStatus}
+          errorMessage={statusUpdateError?.message}
+          onClose={handleCloseStatusUpdate}
+          onSave={handleSaveStatusUpdate}
+        />
       </Screen>
     </SafeArea>
   );
@@ -927,12 +1004,27 @@ const styles = StyleSheet.create({
   moodEmoji: {
     fontSize: 24,
   },
-  statusRow: {
-    gap: 4,
+  statusSection: {
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
   },
   statusLabel: {
     textTransform: "uppercase",
     letterSpacing: 0.7,
+  },
+  statusValue: {
+    fontWeight: "700",
+  },
+  statusAction: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    marginTop: 4,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderRadius: 999,
   },
   sectionBlock: {
     width: "100%",

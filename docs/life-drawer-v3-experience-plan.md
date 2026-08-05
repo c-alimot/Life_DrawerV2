@@ -312,3 +312,19 @@ The component measures its viewport and content to show right/left stepped edge 
 Drawer and Status have a visible required marker, accessible required/selected state, and existing inline validation messages. On a failed save, the form reveals and focuses Drawer first when both are missing, otherwise Status. Image previews and voice controls remain outside the carousel; the carousel only reflects their latest count or active/added state. Edit now also shows the saved Location and allows refreshing it through the existing location-permission pattern.
 
 The project still has no component/integration test runner, so focused runtime coverage verifies the fixed option contract alongside the existing Status and requirement validation tests. Manual device and browser checks remain required for touch, keyboard, screen-reader, and layout behavior.
+
+## Phase 3A implementation notes
+
+Entry detail now has a secondary Current Status section with the latest Status-history date and an owner-only **Update Status** or **Add Status** action. Status history loads independently, so a history-read failure does not prevent the Entry from being read. Legacy Entries remain unchanged until the user explicitly adds their first Status; this uses the existing initial-Status RPC and does not require a Drawer, so older drawer-less Entries can receive a Status safely through the same ownership-checked write path.
+
+`EntryStatusUpdateSheet` is a focused lightweight update flow. It uses the central Status labels and descriptions, allows an optional note of up to 2,000 characters, and does not create a connected reflection or alter the original Entry. A repeated current Status without a note cannot be saved; a same-Status update with a note remains valid. The mutation hook guards concurrent submissions locally, while the existing database RPC locks the Entry, writes history atomically, and returns an existing identical latest event to avoid duplicate history rows on retried requests.
+
+After a successful write, the detail hook immediately updates current Status and appends the returned history event, then refreshes Status history. On a failed or stale write, the sheet keeps the selected Status and note while the detail data refreshes in the background. The Status card and Return action sheet keep **Update Status** (lightweight context) separate from **Reflect on this** (a new connected Entry).
+
+## Phase 3B implementation notes
+
+The Entry detail page now uses one chronological **How this Entry developed** timeline below the original Entry content. The display model is separate from database rows and combines the original Entry, its initial Status, later Status updates and notes, and all connected reflections in the root chain. A Status event that explicitly references a reflection becomes one combined timeline event; sibling and nested reflections remain separate chronological events. Missing linked reflections are represented only as unavailable, without revealing private content.
+
+The reflection-chain query now uses a user-scoped recursive RPC with cycle protection instead of breadth-first client queries. It returns only the IDs, relationship metadata, current Status, dates, and short previews needed by the timeline in one database query. The timeline loader fetches the root Entry Status history once, keeps the main Entry readable while it loads, and provides a subtle retry state on failure.
+
+Deleting a reflection follows the existing foreign-key behaviour: `entries.parent_entry_id` is set to `NULL` on children, and a linked Status event's reflection reference is set to `NULL` while the Status history event itself remains. The timeline therefore never exposes a deleted reflection's title or preview. No user-facing historical-event editing or deletion is added in this phase.

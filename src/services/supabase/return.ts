@@ -6,8 +6,10 @@ import type {
   ExcludedReturnContent,
   EntryWithRelations,
   EntryViewRecord,
+  ReflectionChainEntry,
   ReturnPreferences,
 } from "@types";
+import { entryStatusSchema } from "@constants/entryStatus";
 import {
   HOME_RETURN_CANDIDATE_LIMIT,
   HOME_RETURN_MINIMUM_AGE_DAYS,
@@ -390,53 +392,30 @@ export const returnService = {
   async getReflectionChain(
     entryId: string,
     userId: string,
-  ): Promise<EntryWithRelations[]> {
-    const selectedEntry = await this.findEntryById(entryId, userId);
-    if (!selectedEntry) {
+  ): Promise<ReflectionChainEntry[]> {
+    const { data, error } = await supabase.rpc("get_entry_reflection_chain", {
+      p_entry_id: entryId,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data?.length) {
       throw new Error("Entry not found");
     }
 
-    let rootEntry = selectedEntry;
-    const visitedAncestorIds = new Set<string>([selectedEntry.id]);
-    let parentEntryId = selectedEntry.parentEntryId;
-
-    while (parentEntryId && !visitedAncestorIds.has(parentEntryId)) {
-      visitedAncestorIds.add(parentEntryId);
-      const parentEntry = await this.findEntryById(parentEntryId, userId);
-      if (!parentEntry) {
-        break;
-      }
-
-      rootEntry = parentEntry;
-      parentEntryId = parentEntry.parentEntryId;
-    }
-
-    const entriesById = new Map<string, EntryWithRelations>([[rootEntry.id, rootEntry]]);
-    const pendingEntryIds = [rootEntry.id];
-    const visitedDescendantIds = new Set<string>([rootEntry.id]);
-
-    while (pendingEntryIds.length) {
-      const currentEntryId = pendingEntryIds.shift();
-      if (!currentEntryId) {
-        continue;
-      }
-
-      const children = await this.getLinkedReflections(currentEntryId, userId);
-      for (const child of children) {
-        if (visitedDescendantIds.has(child.id)) {
-          continue;
-        }
-
-        visitedDescendantIds.add(child.id);
-        entriesById.set(child.id, child);
-        pendingEntryIds.push(child.id);
-      }
-    }
-
-    return Array.from(entriesById.values()).sort(
-      (left, right) =>
-        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime(),
-    );
+    return data.map((entry) => ({
+      id: entry.entry_id,
+      userId: entry.user_id,
+      parentEntryId: entry.parent_entry_id ?? undefined,
+      reflectionType: entry.reflection_type === "update" || entry.reflection_type === "response" || entry.reflection_type === "continuation"
+        ? entry.reflection_type
+        : undefined,
+      currentStatus: entry.current_status ? entryStatusSchema.parse(entry.current_status) : null,
+      content: entry.preview,
+      createdAt: entry.created_at,
+    }));
   },
 
   async setSavedForLater(

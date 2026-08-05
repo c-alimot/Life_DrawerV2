@@ -11,12 +11,13 @@ export const ENTRY_STATUS_VALUES = [
 export type EntryStatus = (typeof ENTRY_STATUS_VALUES)[number];
 
 export const entryStatusSchema = z.enum(ENTRY_STATUS_VALUES);
+export const ENTRY_STATUS_NOTE_MAX_LENGTH = 2_000;
 
 export const updateEntryStatusSchema = z
   .object({
     entryId: z.string().uuid(),
     status: entryStatusSchema,
-    note: z.string().trim().max(2_000).nullable().optional(),
+    note: z.string().trim().max(ENTRY_STATUS_NOTE_MAX_LENGTH).nullable().optional(),
     connectedReflectionEntryId: z.string().uuid().nullable().optional(),
   })
   .strict();

@@ -2,17 +2,42 @@ import { useState, useCallback } from 'react';
 import { useAuthStore } from '@store';
 import { entriesService } from '@services/supabase/entries';
 import { returnApi } from '@features/return/return.api';
-import type { EntryWithRelations, ApiError } from '@types';
+import { entryStatusApi } from '../api/entryStatus.api';
+import { entryDevelopmentTimelineApi } from '../api/entryDevelopmentTimeline.api';
+import type { EntryDevelopmentTimeline } from '../entryDevelopmentTimeline';
+import type { EntryStatusHistory, EntryStatusUpdateResult, EntryWithRelations, ReflectionChainEntry, ApiError } from '@types';
 
 export function useEntryDetail(entryId: string) {
   const { user } = useAuthStore();
   const [entry, setEntry] = useState<EntryWithRelations | null>(null);
-  const [reflectionChain, setReflectionChain] = useState<EntryWithRelations[]>([]);
+  const [reflectionChain, setReflectionChain] = useState<ReflectionChainEntry[]>([]);
   const [isReflectionChainLoading, setIsReflectionChainLoading] = useState(false);
   const [reflectionChainError, setReflectionChainError] = useState<ApiError | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [statusHistory, setStatusHistory] = useState<EntryStatusHistory[]>([]);
+  const [isStatusHistoryLoading, setIsStatusHistoryLoading] = useState(false);
+  const [statusHistoryError, setStatusHistoryError] = useState<ApiError | null>(null);
+  const [developmentTimeline, setDevelopmentTimeline] = useState<EntryDevelopmentTimeline | null>(null);
+
+  const fetchStatusHistory = useCallback(async () => {
+    if (!user || !entryId) return;
+
+    setIsStatusHistoryLoading(true);
+    setStatusHistoryError(null);
+    const result = await entryStatusApi.getEntryStatusHistory(entryId, user.id);
+
+    if (!result.success || !result.data) {
+      setStatusHistory([]);
+      setStatusHistoryError(result.error);
+      setIsStatusHistoryLoading(false);
+      return;
+    }
+
+    setStatusHistory(result.data);
+    setIsStatusHistoryLoading(false);
+  }, [entryId, user]);
 
   const fetchReflectionChain = useCallback(async () => {
     if (!user || !entryId) return;
@@ -20,20 +45,22 @@ export function useEntryDetail(entryId: string) {
     setIsReflectionChainLoading(true);
     setReflectionChainError(null);
 
-    const chainResult = await returnApi.getReflectionChain(entryId, user.id);
-    if (!chainResult.success || !chainResult.data) {
+    const timelineResult = await entryDevelopmentTimelineApi.getEntryDevelopmentTimeline(entryId, user.id);
+    if (!timelineResult.success || !timelineResult.data) {
       setReflectionChain([]);
+      setDevelopmentTimeline(null);
       setReflectionChainError(
-        chainResult.error || {
+        timelineResult.error || {
           code: "UNKNOWN_ERROR",
-          message: "Failed to load connected reflections",
+          message: "Failed to load Entry development history",
         },
       );
       setIsReflectionChainLoading(false);
       return;
     }
 
-    setReflectionChain(chainResult.data);
+    setReflectionChain(timelineResult.data.reflectionChain);
+    setDevelopmentTimeline(timelineResult.data);
     setIsReflectionChainLoading(false);
   }, [entryId, user]);
 
@@ -47,6 +74,7 @@ export function useEntryDetail(entryId: string) {
       const result = await entriesService.getEntryById(entryId, user.id);
       setEntry(result);
       void fetchReflectionChain();
+      void fetchStatusHistory();
       return true;
     } catch (err) {
       const apiError = err as ApiError;
@@ -56,7 +84,15 @@ export function useEntryDetail(entryId: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [entryId, fetchReflectionChain, user]);
+  }, [entryId, fetchReflectionChain, fetchStatusHistory, user]);
+
+  const applyStatusUpdate = useCallback((result: EntryStatusUpdateResult) => {
+    setEntry((current) => current ? { ...current, currentStatus: result.currentStatus } : current);
+    setStatusHistory((current) => {
+      const withoutRepeatedEvent = current.filter((event) => event.id !== result.historyEvent.id);
+      return [...withoutRepeatedEvent, result.historyEvent];
+    });
+  }, []);
 
   const recordEntryView = useCallback(async () => {
     if (!user || !entryId) return false;
@@ -189,7 +225,13 @@ export function useEntryDetail(entryId: string) {
     isDeleting,
     isLoading,
     error,
+    statusHistory,
+    isStatusHistoryLoading,
+    statusHistoryError,
+    developmentTimeline,
     fetchEntry,
+    fetchStatusHistory,
+    applyStatusUpdate,
     fetchReflectionChain,
     recordEntryView,
     setSavedForLater,
